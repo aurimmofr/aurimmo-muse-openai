@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { __test } from '../api/generate.mjs';
+import { checkPassword } from '../api/_security.mjs';
 
 const catalogue=JSON.parse(await readFile(new URL('../public/catalogue.json',import.meta.url),'utf8'));
 
@@ -53,4 +54,12 @@ test('public source never contains local secrets or paid result data',async()=>{
   for(const relative of files){const text=await readFile(new URL(relative,import.meta.url),'utf8');assert.doesNotMatch(text,/sk-[A-Za-z0-9_-]{20,}|BFL_API_KEY=/);}
   const html=await readFile(new URL('../public/index.html',import.meta.url),'utf8');
   assert.match(html,/OpenAI Image/);assert.match(html,/Muse Image/);assert.doesNotMatch(html,/Flux 3/);
+});
+
+test('application password accepts the configured 10+ character policy',()=>{
+  const previous=process.env.APP_PASSWORD;
+  process.env.APP_PASSWORD='valid-pass1';
+  assert.equal(checkPassword('valid-pass1'),true);
+  assert.equal(checkPassword('invalid-pass'),false);
+  if(previous===undefined)delete process.env.APP_PASSWORD;else process.env.APP_PASSWORD=previous;
 });

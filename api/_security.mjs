@@ -45,7 +45,7 @@ export function requireAuth(req,res) {
 
 export function checkPassword(candidate) {
   const expected=process.env.APP_PASSWORD;
-  return typeof expected==='string'&&expected.length>=12&&typeof candidate==='string'&&safeEqual(candidate,expected);
+  return typeof expected==='string'&&expected.length>=10&&typeof candidate==='string'&&safeEqual(candidate,expected);
 }
 
 export function requestId() {return randomBytes(12).toString('hex');}
