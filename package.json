@@ -8,7 +8,9 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "hotspots:once": "node --env-file-if-exists=.vercel/.env.production.local scripts/hotspot-bridge.mjs --once",
+    "hotspots:bridge": "node --env-file-if-exists=.vercel/.env.production.local scripts/hotspot-bridge.mjs"
   },
   "dependencies": {
     "@vercel/blob": "^2.4.0"

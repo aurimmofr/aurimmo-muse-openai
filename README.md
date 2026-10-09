@@ -6,7 +6,9 @@ des mêmes surfaces et de la même sélection catalogue figée.
 
 L'interface reprend le laboratoire Aurimmo existant : identité visuelle et CSS,
 prise ou ajout de photo, quatre programmes, choix indépendants du sol et des murs,
-cartes produits, panier local, carnet d'essai et comparaison côte à côte.
+cartes produits, panier local, carnet d'essai et comparaison côte à côte. Elle
+embarque les 4 192 références Salon/Japandi actives du catalogue local et garde
+séparément les références exactes nécessaires à la lecture des anciens rendus.
 
 ## Sécurité
 
@@ -27,9 +29,22 @@ npx vercel dev
 Variables requises : voir `.env.example`. La génération reste bloquée si
 `GENERATION_ENABLED` n'est pas exactement `true`.
 
-## Limite volontaire
+## Points produits
 
-Le panier et les fiches produits sont locaux au navigateur. Les points bleus ne
-sont pas inventés dans la version Vercel : ils exigent le repérage visuel local
-hors ligne du laboratoire complet. La version publique affiche donc les produits
-figés sous le rendu, sans prétendre les localiser dans l'image.
+Après chaque rendu, un worker GitHub Actions hébergé télécharge l'image privée,
+exécute Grounding DINO + SAM hors ligne puis enregistre uniquement les positions
+normalisées dans le Blob privé. Il n'appelle ni Muse ni OpenAI, n'envoie aucune
+image à une API de vision et omet tout produit non localisé avec assez de confiance.
+Le contrôle des rendus en attente a lieu toutes les cinq minutes ; l'interface
+publique actualise automatiquement les points pendant le traitement.
+
+```sh
+npm run hotspots:once    # traiter les rendus en attente puis quitter
+npm run hotspots:bridge  # surveiller les nouveaux rendus
+```
+
+Ces commandes restent disponibles pour le développement, mais le site public ne
+dépend pas du Mac du laboratoire. Le workflow `.github/workflows/product-hotspots.yml`
+utilise le secret GitHub `BLOB_READ_WRITE_TOKEN`, les poids publics épinglés et un
+runner éphémère. La fiche ouverte depuis un point et le panier restent locaux au
+navigateur ; aucun achat n'est connecté.

@@ -7,14 +7,18 @@ import { validPrivatePath } from '../api/delete.mjs';
 
 const catalogue=JSON.parse(await readFile(new URL('../public/catalogue.json',import.meta.url),'utf8'));
 
-test('public catalogue is compact, Japandi and contains every supported role',()=>{
-  assert.equal(catalogue.schema_version,'aurimmo.public.catalogue.v1');
-  assert.ok(catalogue.products.length>=80&&catalogue.products.length<=120);
+test('public catalogue contains the complete eligible Salon/Japandi library',()=>{
+  assert.equal(catalogue.schema_version,'aurimmo.public.catalogue.v2');
+  assert.equal(catalogue.active_total,4192);
+  assert.equal(catalogue.historical_run_only_total,2);
+  assert.equal(catalogue.products.length,4194);
+  assert.equal(catalogue.total,catalogue.products.length);
+  assert.equal(new Set(catalogue.products.map(product=>product.catalog_id)).size,catalogue.products.length);
   const roles=new Set(catalogue.products.map(product=>product.role));
-  for(const role of ['sofa','armchair','coffee_table','rug','floor_lamp','tv_unit','dining_table','dining_chair','floor_finish','wall_finish'])assert.ok(roles.has(role),role);
+  for(const role of ['sofa','armchair','coffee_table','rug','floor_lamp','tv_unit','dining_table','dining_chair','floor_finish','wall_finish','bookcase','side_table','mirror','plant'])assert.ok(roles.has(role),role);
   for(const product of catalogue.products){
     assert.match(product.catalog_id,/^[a-zA-Z0-9_-]+$/);
-    assert.equal(new URL(product.image_url).hostname,'interieur-ia.aurimmo.fr');
+    assert.ok(['interieur-ia.aurimmo.fr','m.media-amazon.com'].includes(new URL(product.image_url).hostname));
     assert.ok(!Object.hasOwn(product,'raw_values'));
   }
 });
@@ -65,6 +69,8 @@ test('the public page preserves the Aurimmo photo workflow and original styleshe
   assert.match(html,/id="programme-cards"/);
   assert.match(html,/data-image-provider="openai"/);
   assert.match(html,/data-image-provider="muse"/);
+  const app=await readFile(new URL('../public/app.js',import.meta.url),'utf8');
+  assert.match(app,/renderCatalogueExplorer/);assert.match(app,/\/api\/hotspots/);assert.match(app,/Ouvrir avec les points/);
 });
 
 test('private deletion is restricted to exact upload and result paths',()=>{

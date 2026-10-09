@@ -20,6 +20,8 @@ const ROLE_LABELS = {
   artwork:'Décoration murale',decorative_object:'Objet décoratif',side_table:'Table d’appoint',
   bookcase:'Bibliothèque',table_lamp:'Lampe à poser',tv_unit:'Meuble TV',dining_table:'Table de repas',
   dining_chair:'Chaise de repas',pendant:'Suspension',floor_finish:'Finition du sol',wall_finish:'Finition murale',
+  sideboard:'Buffet',console:'Console',pouf:'Pouf',wall_lamp:'Applique',ceiling_lamp:'Plafonnier',mirror:'Miroir',
+  plant:'Végétal décoratif',planter:'Cache-pot',basket:'Panier',cushion:'Coussin',throw:'Plaid',
 };
 
 function savedCart() {
@@ -30,10 +32,11 @@ function savedCart() {
 }
 
 const state = {
-  catalogue:[], providers:{}, generationEnabled:false, provider:'openai', programme:null, includeTV:false,
-  surfaces:{floor:'preserve',walls:'preserve'}, variant:0, selection:[], fingerprint:null,
+  catalogue:[], catalogueRoles:[], catalogueActiveTotal:0, catalogueHistoricalTotal:0, providers:{}, generationEnabled:false, provider:'openai', programme:null, includeTV:false,
+  surfaces:{floor:'preserve',walls:'preserve'}, variant:0, forcedByRole:{}, selection:[], fingerprint:null,
   photoPath:null, photoURL:null, photoName:null, width:null, height:null,
   results:{}, history:[], view:'original', compare:false, busy:false, initialized:false, cart:savedCart(),
+  explorer:{query:'',role:'',page:0,limit:18},hotspots:new Map(),hotspotVisible:true,hotspotTimer:null,hotspotPollingRun:null,
 };
 
 async function api(path,options={}) {
@@ -76,9 +79,9 @@ function hideUnsupportedControls() {
   for(const selector of [
     '#prepare-button','#prepare-feedback','#historical-cost-box','#run-button','#historical-paid-note',
     '#preview-propose-button','#expert-workflow','#proposal-recovery-panel','#service-error-recovery-panel',
-    '#result-review-controls','#previous-service-error-notice','#review-link','#catalogue-explorer-section',
+    '#result-review-controls','#previous-service-error-notice','#review-link',
     '#dynamic-pool-section','#historical-reference-panel','#historical-uncertainties','#tab-reference',
-    '#reference-thumbnail','#product-hotspot-toggle','#flux3-only-button'
+    '#reference-thumbnail','#flux3-only-button'
   ]) $(selector)?.classList.add('hidden');
   $('#selection-preview-note').textContent='Les références ci-dessous sont choisies localement et gratuitement. Aucun appel IA n’est lancé pour les consulter.';
   const composition=$('#new-composition-button');
@@ -136,11 +139,11 @@ function renderProgrammes() {
       const checkbox=node('input');checkbox.type='checkbox';checkbox.checked=state.includeTV;checkbox.setAttribute('aria-label','Ajouter une télévision générique au salon et espace repas');
       optionLabel.append(checkbox,node('span','', 'Ajouter une TV générique'));option.append(optionLabel);
       checkbox.addEventListener('click',event=>event.stopPropagation());
-      checkbox.addEventListener('change',async()=>{state.includeTV=checkbox.checked;state.variant=0;await rebuildSelection();renderProgrammes();});
+      checkbox.addEventListener('change',async()=>{state.includeTV=checkbox.checked;state.variant=0;await rebuildSelection();renderProgrammes();renderCatalogueExplorer();});
       label.append(option);
     }
     radio.addEventListener('change',async()=>{
-      state.programme=programme.id;state.includeTV=false;state.variant=0;await rebuildSelection();renderProgrammes();
+      state.programme=programme.id;state.includeTV=false;state.variant=0;state.forcedByRole={};await rebuildSelection();renderProgrammes();renderCatalogueExplorer();
       $('#programme-message').textContent='Programme enregistré pour cette photo. La sélection est prête gratuitement.';
     });
     container.append(label);
@@ -165,10 +168,12 @@ async function digest(value) {
 async function rebuildSelection({clearResults=true}={}) {
   if(!state.programme){state.selection=[];state.fingerprint=null;renderProducts();updateInterface();return;}
   const byRole=new Map();
-  for(const product of state.catalogue){if(!byRole.has(product.role))byRole.set(product.role,[]);byRole.get(product.role).push(product);}
+  for(const product of state.catalogue){if(product.selection_status==='historical_run_only')continue;if(!byRole.has(product.role))byRole.set(product.role,[]);byRole.get(product.role).push(product);}
   state.selection=requiredRoles().map((role,index)=>{
     const choices=byRole.get(role)||[];
     if(!choices.length)throw new Error(`Aucune référence ${ROLE_LABELS[role]||role} n’est disponible.`);
+    const forced=choices.find(product=>product.catalog_id===state.forcedByRole[role]);
+    if(forced)return forced;
     return choices[(state.variant+index)%choices.length];
   });
   const canonical=JSON.stringify({program:state.programme,include_tv:Boolean(state.includeTV),surfaces:state.surfaces,
@@ -222,6 +227,51 @@ function renderCart() {
   $('#product-hotspot-cart').textContent=`Panier · ${products.length}`;
 }
 
+function searchable(value) {
+  return String(value??'').normalize('NFD').replace(/\p{Diacritic}/gu,'').toLowerCase();
+}
+
+function renderCatalogueExplorerOptions() {
+  const select=$('#catalogue-role'),selected=state.explorer.role;select.replaceChildren(new Option('Tous les rôles gérés',''));
+  const roles=state.catalogueRoles.length?state.catalogueRoles:[...new Set(state.catalogue.map(product=>product.role))].map(role=>({role,label:ROLE_LABELS[role]||role,eligible:state.catalogue.filter(product=>product.role===role).length}));
+  for(const role of roles.filter(role=>role.eligible>0))select.append(new Option(`${role.label||ROLE_LABELS[role.role]||role.role} · ${role.eligible}`,role.role));
+  select.value=selected;
+}
+
+async function chooseCatalogueProduct(product) {
+  if(!requiredRoles().includes(product.role))return;
+  state.forcedByRole[product.role]=product.catalog_id;
+  await rebuildSelection();renderCatalogueExplorer();
+  $('#selection-preview-panel').open=true;
+  setFeedback('Référence choisie',`${product.product_name} remplace la référence ${ROLE_LABELS[product.role]||product.role} de cette composition. Aucun appel IA n’a été lancé.`);
+  $('#catalogue').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function explorerCard(product) {
+  const article=node('article','catalogue-explorer-card'),image=node('img','catalogue-explorer-image');
+  image.src=product.image_url;image.alt=product.product_name;image.loading='lazy';image.referrerPolicy='no-referrer';
+  article.append(image,node('span','product-topline',`${product.retailer} · ${ROLE_LABELS[product.role]||product.role}`),node('h3','',product.product_name),node('span','product-id',product.catalog_id),node('strong','',money(product)));
+  const link=node('a','product-link','Voir la fiche ↗');link.href=product.product_url;link.target='_blank';link.rel='noopener noreferrer';article.append(link);
+  const historical=product.selection_status==='historical_run_only',usable=!historical&&requiredRoles().includes(product.role),selected=state.selection.some(item=>item.catalog_id===product.catalog_id);
+  const button=node('button','text-button',selected?'Sélectionnée pour ce rendu':historical?'Référence conservée pour un ancien rendu':usable?'Choisir cette référence':'Rôle hors du programme choisi');button.type='button';button.disabled=!usable||selected;button.setAttribute('aria-pressed',String(selected));
+  button.addEventListener('click',()=>chooseCatalogueProduct(product));article.append(button);return article;
+}
+
+function renderCatalogueExplorer() {
+  const section=$('#catalogue-explorer-section');section.classList.remove('hidden');
+  $('#catalogue-explorer-title').textContent=`Explorer les ${state.catalogueActiveTotal.toLocaleString('fr-FR')} références actives Salon / Japandi`;
+  $('#explorer-summary').textContent=state.catalogue.length?`${state.catalogueActiveTotal.toLocaleString('fr-FR')} références actives consultables${state.catalogueHistoricalTotal?` + ${state.catalogueHistoricalTotal} références conservées uniquement pour les anciens rendus`:''}. La recherche et le changement d’une référence active sont locaux et gratuits.`:'Chargement du catalogue…';
+  if(!$('#catalogue-explorer-details').open)return;
+  const query=searchable(state.explorer.query),role=state.explorer.role;
+  const filtered=state.catalogue.filter(product=>(!role||product.role===role)&&(!query||searchable([product.catalog_id,product.sku,product.retailer,product.product_name,product.category].join(' ')).includes(query)));
+  const pageCount=Math.max(1,Math.ceil(filtered.length/state.explorer.limit));state.explorer.page=Math.min(state.explorer.page,pageCount-1);
+  const start=state.explorer.page*state.explorer.limit,shown=filtered.slice(start,start+state.explorer.limit),container=$('#catalogue-explorer-products');container.replaceChildren(...shown.map(explorerCard));
+  if(!shown.length)container.append(node('p','field-note','Aucune référence ne correspond à cette recherche.'));
+  $('#catalogue-explorer-feedback').textContent=`${filtered.length.toLocaleString('fr-FR')} résultat${filtered.length>1?'s':''} · ${shown.length?`${start+1}–${start+shown.length}`:'aucun affiché'}.`;
+  $('#catalogue-page-status').textContent=`Page ${state.explorer.page+1} / ${pageCount}`;
+  $('#catalogue-page-previous').disabled=state.explorer.page===0;$('#catalogue-page-next').disabled=state.explorer.page>=pageCount-1;
+}
+
 function renderSurfaceMessage() {
   const floor=state.surfaces.floor==='preserve'?'sol conservé':'sol modifié avec une finition catalogue';
   const walls=state.surfaces.walls==='preserve'?'murs conservés':'murs modifiés avec une finition catalogue';
@@ -248,7 +298,7 @@ function updateReadiness() {
   markReady('#key-icon','#key-status',state.selection.length?'Figée':'En attente',Boolean(state.selection.length));
   markReady('#flux-key-icon','#flux-key-status',configured?'Prêt':'Non configuré',configured);
   markReady('#integrity-icon','#integrity-status',state.photoPath?'Photo privée prête':'Photo attendue',Boolean(state.photoPath));
-  markReady('#catalogue-icon','#catalogue-status',state.catalogue.length?`${state.catalogue.length} disponibles`:'Indisponible',Boolean(state.catalogue.length));
+  markReady('#catalogue-icon','#catalogue-status',state.catalogueActiveTotal?`${state.catalogueActiveTotal.toLocaleString('fr-FR')} actives`:'Indisponible',Boolean(state.catalogueActiveTotal));
   const fullyReady=configured&&state.photoPath&&state.programme&&state.fingerprint;
   const pill=$('#readiness-pill');pill.className=`readiness-pill${fullyReady?'':' loading'}`;pill.textContent=fullyReady?'Prêt à générer':'Préparation';
   $('#config-help').classList.toggle('hidden',configured);
@@ -260,7 +310,7 @@ function updateGenerate() {
   if(!state.photoPath)text='Prendre ou ajouter une photo';else if(!state.programme)text='Choisir un aménagement';
   else if(!configured)text=`${providerLabel()} non configuré`;else if(previous)text=`Rendu ${providerLabel()} obtenu`;
   label.textContent=text;button.disabled=state.busy||!state.photoPath||!state.programme||!state.fingerprint||!configured||previous;
-  const replay=$('#replay-render-button');replay.classList.toggle('hidden',!previous);replay.disabled=state.busy||!configured||!previous;
+  const replay=$('#replay-render-button');replay.classList.toggle('hidden',!previous||!state.photoPath);replay.disabled=state.busy||!configured||!previous||!state.photoPath;
   const stage=$('#dynamic-stage');
   if(state.busy)stage.textContent=`${providerLabel()} génère l’image. Aucun retry automatique.`;
   else if(!state.photoPath)stage.textContent='Prenez ou ajoutez une photo pour commencer. L’import est gratuit.';
@@ -279,6 +329,7 @@ function currentResult() {
 
 function setStageImage(url,{href=url,badge,caption,dimensions,alt}) {
   const image=$('#stage-image'),link=$('#stage-link');image.src=url;image.alt=alt||'';link.href=href||url;
+  link.setAttribute('aria-label',alt?`Ouvrir en grand : ${alt}`:'Ouvrir l’image en grand');
   $('#stage-badge').textContent=badge;$('#stage-caption').textContent=caption;$('#stage-dimensions').textContent=dimensions||'';
 }
 
@@ -305,10 +356,80 @@ function showComparison() {
   $('#compare-provider-results').setAttribute('aria-pressed','true');updateHotspotNotice();
 }
 
+function closeHotspotCard() {
+  const card=$('#product-hotspot-card');card.classList.add('hidden');card.replaceChildren();
+  for(const button of $$('#product-hotspot-layer .product-hotspot-point'))button.setAttribute('aria-expanded','false');
+}
+
+function containedImageRect() {
+  const stage=$('#image-stage'),image=$('#stage-image'),stageRect=stage.getBoundingClientRect(),imageRect=image.getBoundingClientRect();
+  if(!image.complete||!image.naturalWidth||!image.naturalHeight||!imageRect.width||!imageRect.height)return null;
+  const scale=Math.min(imageRect.width/image.naturalWidth,imageRect.height/image.naturalHeight),width=image.naturalWidth*scale,height=image.naturalHeight*scale;
+  return {left:imageRect.left-stageRect.left+(imageRect.width-width)/2,top:imageRect.top-stageRect.top+(imageRect.height-height)/2,width,height};
+}
+
+function openHotspotCard(point,payload,button) {
+  const product=payload.products.find(item=>item.catalog_id===point.catalog_id);if(!product)return;
+  closeHotspotCard();button.setAttribute('aria-expanded','true');
+  const card=$('#product-hotspot-card'),title=node('h3','visually-hidden',product.product_name);title.id='product-hotspot-card-title';
+  const close=node('button','hotspot-card-close','×');close.type='button';close.setAttribute('aria-label','Fermer la fiche produit');close.addEventListener('click',closeHotspotCard);
+  const photo=node('img','hotspot-card-photo');photo.src=product.image_url;photo.alt=product.product_name;photo.referrerPolicy='no-referrer';
+  const body=node('div','hotspot-card-body');body.append(node('span','hotspot-card-retailer',product.retailer),node('p','hotspot-card-name',product.product_name),node('strong','hotspot-card-price',money(product)));
+  const link=node('a','product-link','Voir la fiche ↗');link.href=product.product_url;link.target='_blank';link.rel='noopener noreferrer';body.append(link);
+  const inCart=state.cart.includes(product.catalog_id),add=node('button','hotspot-card-add',inCart?'Retirer du panier local':'Ajouter au panier local');add.type='button';
+  add.addEventListener('click',()=>{state.cart=inCart?state.cart.filter(id=>id!==product.catalog_id):[...new Set([...state.cart,product.catalog_id])];localStorage.setItem('aurimmo-public-cart',JSON.stringify(state.cart));renderCart();closeHotspotCard();});
+  body.append(add);card.append(title,close,photo,body);card.classList.remove('hidden');
+  const rect=containedImageRect(),stage=$('#image-stage').getBoundingClientRect(),dimensions=card.getBoundingClientRect();if(!rect)return;
+  const x=rect.left+rect.width*point.x,y=rect.top+rect.height*point.y,placeRight=x+dimensions.width+32<stage.width;
+  const left=Math.min(Math.max(10,placeRight?x+22:x-dimensions.width-22),Math.max(10,stage.width-dimensions.width-10));
+  const top=Math.min(Math.max(10,y-dimensions.height/2),Math.max(10,stage.height-dimensions.height-10));
+  card.dataset.tailSide=placeRight?'left':'right';Object.assign(card.style,{left:`${left}px`,top:`${top}px`,'--hotspot-tail-y':`${Math.min(dimensions.height-18,Math.max(18,y-top))}px`});close.focus();
+}
+
+function renderHotspots() {
+  const layer=$('#product-hotspot-layer'),result=currentResult(),payload=result&&state.hotspots.get(result.run_id);layer.replaceChildren();closeHotspotCard();
+  const active=state.view==='result'&&!state.compare&&result&&payload?.localization?.status==='completed'&&state.hotspotVisible&&payload.hotspots.length;
+  if(!active){layer.classList.add('hidden');return;}
+  const rect=containedImageRect();if(!rect){layer.classList.add('hidden');return;}
+  Object.assign(layer.style,{left:`${rect.left}px`,top:`${rect.top}px`,width:`${rect.width}px`,height:`${rect.height}px`});
+  for(const point of payload.hotspots) {
+    const product=payload.products.find(item=>item.catalog_id===point.catalog_id);if(!product)continue;
+    const button=node('button','product-hotspot-point');button.type='button';button.style.left=`${point.x*100}%`;button.style.top=`${point.y*100}%`;
+    button.setAttribute('aria-label',`Voir le produit : ${product.product_name}`);button.setAttribute('aria-expanded','false');button.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();openHotspotCard(point,payload,button);});layer.append(button);
+  }
+  layer.classList.remove('hidden');
+}
+
+function clearHotspotPolling() {
+  if(state.hotspotTimer!==null){clearTimeout(state.hotspotTimer);state.hotspotTimer=null;}state.hotspotPollingRun=null;
+}
+
+function ensureHotspots(result) {
+  if(!result?.run_id||state.hotspotPollingRun===result.run_id)return;
+  clearHotspotPolling();state.hotspotPollingRun=result.run_id;
+  const poll=async attempt=>{
+    try {
+      const payload=await api(`/api/hotspots?run_id=${encodeURIComponent(result.run_id)}`);state.hotspots.set(result.run_id,payload);updateHotspotNotice();
+      if(payload.localization?.status==='pending'&&attempt<120&&currentResult()?.run_id===result.run_id)state.hotspotTimer=setTimeout(()=>poll(attempt+1),7000);
+      else state.hotspotPollingRun=null;
+    } catch(error) {
+      state.hotspots.set(result.run_id,{run_id:result.run_id,products:result.products||[],hotspots:[],localization:{status:'failed'},error:error.message});state.hotspotPollingRun=null;updateHotspotNotice();
+    }
+  };
+  poll(0);
+}
+
 function updateHotspotNotice() {
-  const visible=state.view==='result'&&!state.compare&&Boolean(currentResult()),tools=$('#product-hotspot-tools'),status=$('#product-hotspot-status');
+  const result=currentResult(),visible=state.view==='result'&&!state.compare&&Boolean(result),tools=$('#product-hotspot-tools'),status=$('#product-hotspot-status'),payload=result&&state.hotspots.get(result.run_id),toggle=$('#product-hotspot-toggle');
   tools.classList.toggle('hidden',!visible);status.classList.toggle('hidden',!visible);
-  status.textContent=visible?'Panier disponible. Aucun point n’est inventé : le repérage automatique hors ligne reste réservé au laboratoire local.':'';
+  toggle.textContent=state.hotspotVisible?'Masquer les points':'Afficher les points';toggle.setAttribute('aria-pressed',String(state.hotspotVisible));toggle.disabled=!payload?.hotspots?.length;
+  status.classList.toggle('error',payload?.localization?.status==='failed');
+  if(!visible)status.textContent='';
+  else if(!payload||payload.localization?.status==='pending')status.textContent='Repérage automatique en cours sur l’image finale · vision hors ligne hébergée, sans nouvel appel Muse/OpenAI.';
+  else if(payload.localization?.status==='failed')status.textContent=`Le repérage des produits a échoué ; le rendu reste intact et aucun point approximatif n’a été ajouté.${payload.error?` ${payload.error}`:''}`;
+  else if(payload.hotspots.length)status.textContent=`${payload.hotspots.length} point${payload.hotspots.length>1?'s':''} automatique${payload.hotspots.length>1?'s':''} · cliquez sur un point bleu pour voir la référence exacte.`;
+  else status.textContent='Aucun produit n’a été localisé avec assez de confiance ; aucun point inventé n’a été ajouté.';
+  renderHotspots();if(visible&&!payload)ensureHotspots(result);
 }
 
 function renderResults() {
@@ -332,8 +453,24 @@ function renderHistory() {
     const row=node('article','history-row'),image=node('img');image.src=result.image_url;image.alt=`Rendu ${providerLabel(result.provider)}`;
     const copy=node('div'),title=node('h3','',`${providerLabel(result.provider)} · ${programmeLabel(result.program)}`),status=node('span','history-state pending','Revue humaine');title.append(status);
     copy.append(title,node('p','history-meta',`${new Date(result.created_at).toLocaleString('fr-FR')} · ${result.products.length} références · ${Math.round(result.elapsed_ms/1000)} s · ${costLabel(result)}`));
-    const link=node('a','', 'Voir le rendu ↗');link.href=result.image_url;link.target='_blank';link.rel='noopener';row.append(image,copy,link);container.append(row);
+    const actions=node('div','history-actions'),open=node('button','text-button','Ouvrir avec les points');open.type='button';open.addEventListener('click',()=>openHistoryResult(result));
+    const link=node('a','', 'Image ↗');link.href=result.image_url;link.target='_blank';link.rel='noopener';actions.append(open,link);row.append(image,copy,actions);container.append(row);
   }
+}
+
+function openHistoryResult(result) {
+  clearHotspotPolling();state.provider=result.provider;state.programme=result.program;state.includeTV=Boolean(result.include_tv);state.surfaces=result.surfaces||{floor:'preserve',walls:'preserve'};
+  state.selection=result.products;state.fingerprint=result.selection_fingerprint;state.forcedByRole=Object.fromEntries(result.products.map(product=>[product.role,product.catalog_id]));
+  state.results={};for(const item of state.history.filter(item=>item.selection_fingerprint===result.selection_fingerprint))state.results[item.provider]=item;
+  state.results[result.provider]=result;state.view='result';state.compare=false;
+  for(const input of $$('[data-surface]'))input.checked=input.value===state.surfaces[input.dataset.surface];
+  renderProgrammes();renderProducts();renderCatalogueExplorer();renderResults();updateInterface();setView('result');ensureHotspots(result);$('#workspace').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+async function refreshHistory() {
+  const payload=await api('/api/history');state.history=payload.runs||[];renderHistory();
+  const result=currentResult(),fresh=result&&state.history.find(item=>item.run_id===result.run_id);
+  if(fresh){state.results[fresh.provider]=fresh;renderResults();}
 }
 
 async function optimizePhoto(file) {
@@ -389,9 +526,9 @@ async function generate({replay=false}={}) {
       provider:state.provider,program:state.programme,include_tv:state.includeTV,surfaces:state.surfaces,room_path:state.photoPath,width:state.width,height:state.height,
       product_ids:state.selection.map(product=>product.catalog_id),selection_fingerprint:state.fingerprint,authorization_id:crypto.randomUUID(),confirm_paid_generation:true,
     })});
-    const complete={...result,program:state.programme,created_at:new Date().toISOString()};
+    const complete={...result,program:state.programme,include_tv:state.includeTV,surfaces:{...state.surfaces},created_at:new Date().toISOString()};
     state.results[state.provider]=complete;state.history.push(complete);state.view='result';state.compare=false;
-    $('#render-cost').textContent=costLabel(complete);renderHistory();renderResults();setView('result');
+    $('#render-cost').textContent=costLabel(complete);renderHistory();renderResults();setView('result');ensureHotspots(complete);
     setFeedback('Rendu reçu',`${providerLabel()} a livré une image. Vérifiez le poêle, l’architecture, les ouvertures, les fixes et chaque produit avant acceptation.`);
     $('#workspace').scrollIntoView({behavior:'smooth',block:'start'});
   } catch(error) { setProgress(false,true);setFeedback('Génération arrêtée',error.message,{error:true}); }
@@ -408,30 +545,38 @@ function bindEvents() {
   $('#delete-photo-button').addEventListener('click',deletePhoto);
   for(const input of $$('[data-surface]'))input.addEventListener('change',async()=>{
     state.surfaces={floor:$('input[name="surface-floor"]:checked').value,walls:$('input[name="surface-walls"]:checked').value};
-    state.variant=0;await rebuildSelection();renderSurfaceMessage();
+    state.variant=0;await rebuildSelection();renderSurfaceMessage();renderCatalogueExplorer();
   });
   $('#new-composition-button').addEventListener('click',async()=>{
-    state.variant+=1;await rebuildSelection();$('#selection-preview-panel').open=true;
+    state.variant+=1;state.forcedByRole={};await rebuildSelection();renderCatalogueExplorer();$('#selection-preview-panel').open=true;
     setFeedback('Nouvelle composition prête','Les références ont changé localement. Aucun moteur d’image et aucun appel payant n’ont été lancés.');$('#catalogue').scrollIntoView({behavior:'smooth',block:'start'});
   });
   $('#dynamic-generate-button').addEventListener('click',()=>generate());$('#replay-render-button').addEventListener('click',()=>generate({replay:true}));
   $('#tab-original').addEventListener('click',()=>setView('original'));$('#tab-result').addEventListener('click',()=>setView('result'));
   for(const item of $$('.comparison-item'))item.addEventListener('click',()=>setView(item.dataset.view));
   $('#compare-provider-results').addEventListener('click',()=>state.compare?setView('result'):showComparison());
+  $('#product-hotspot-toggle').addEventListener('click',()=>{state.hotspotVisible=!state.hotspotVisible;updateHotspotNotice();});
   $('#product-hotspot-cart').addEventListener('click',()=>{
     const panel=$('#product-hotspot-cart-panel'),opening=panel.classList.contains('hidden');panel.classList.toggle('hidden',!opening);$('#product-hotspot-cart').setAttribute('aria-expanded',String(opening));
   });
   $('#product-hotspot-cart-close').addEventListener('click',()=>{$('#product-hotspot-cart-panel').classList.add('hidden');$('#product-hotspot-cart').setAttribute('aria-expanded','false');});
-  $('#refresh-button').addEventListener('click',renderHistory);
+  $('#image-stage').addEventListener('click',event=>{if(!event.target.closest('.product-hotspot-point')&&!event.target.closest('#product-hotspot-card'))closeHotspotCard();});
+  $('#stage-image').addEventListener('load',renderHotspots);window.addEventListener('resize',renderHotspots);
+  $('#catalogue-explorer-details').addEventListener('toggle',renderCatalogueExplorer);
+  $('#catalogue-search-form').addEventListener('submit',event=>{event.preventDefault();state.explorer.query=$('#catalogue-query').value.trim();state.explorer.role=$('#catalogue-role').value;state.explorer.page=0;renderCatalogueExplorer();});
+  $('#catalogue-role').addEventListener('change',()=>{state.explorer.role=$('#catalogue-role').value;state.explorer.page=0;renderCatalogueExplorer();});
+  $('#catalogue-page-previous').addEventListener('click',()=>{state.explorer.page=Math.max(0,state.explorer.page-1);renderCatalogueExplorer();$('#catalogue-explorer-section').scrollIntoView({behavior:'smooth',block:'start'});});
+  $('#catalogue-page-next').addEventListener('click',()=>{state.explorer.page+=1;renderCatalogueExplorer();$('#catalogue-explorer-section').scrollIntoView({behavior:'smooth',block:'start'});});
+  $('#refresh-button').addEventListener('click',()=>refreshHistory().catch(error=>setFeedback('Historique indisponible',error.message,{error:true})));
 }
 
 async function initialize() {
   if(state.initialized)return;state.initialized=true;addSessionActions();
   try {
-    const [catalogue,status]=await Promise.all([api('/api/catalogue'),api('/api/status')]);
-    state.catalogue=catalogue.products;state.providers=status.providers||{};state.generationEnabled=status.generation_enabled===true;
+    const [catalogue,status,history]=await Promise.all([api('/api/catalogue'),api('/api/status'),api('/api/history')]);
+    state.catalogue=catalogue.products;state.catalogueRoles=catalogue.roles||[];state.catalogueActiveTotal=catalogue.active_total??catalogue.products.length;state.catalogueHistoricalTotal=catalogue.historical_run_only_total??0;state.providers=status.providers||{};state.generationEnabled=status.generation_enabled===true;state.history=history.runs||[];
     $('#upload-button').disabled=false;$('#authentication-status').textContent='Session protégée active';$('#case-select').replaceChildren(new Option('Aucune photo ajoutée','',true,true));
-    renderProgrammes();renderProducts();renderHistory();updateInterface();
+    renderCatalogueExplorerOptions();renderCatalogueExplorer();renderProgrammes();renderProducts();renderHistory();updateInterface();
   } catch(error) {
     state.initialized=false;$('#connection-banner').textContent=error.message;$('#connection-banner').classList.remove('hidden');throw error;
   }

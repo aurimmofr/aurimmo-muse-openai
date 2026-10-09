@@ -2367,6 +2367,13 @@ code {
   font-size:11px;
   overflow-wrap:anywhere;
 }
+.catalogue-explorer-image {
+  width:100%;
+  height:180px;
+  object-fit:contain;
+  border-radius:6px;
+  background:#f7f6f2;
+}
 .catalogue-explorer-card h3 {
   font:18px Georgia,serif;
   line-height:1.4;
@@ -2380,6 +2387,9 @@ code {
   text-decoration:underline;
   text-underline-offset:3px;
 }
+.catalogue-explorer-card .text-button:disabled:not([aria-pressed=true]) {color:var(--muted);text-decoration:none;cursor:not-allowed;}
+.history-actions {display:flex;flex-direction:column;align-items:flex-end;gap:8px;min-width:125px;}
+.history-actions .text-button {font-size:11px;text-align:right;}
 .catalogue-pagination {
   display:flex;
   align-items:center;

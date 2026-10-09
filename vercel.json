@@ -7,6 +7,12 @@
     },
     "api/catalogue.mjs": {
       "includeFiles": "public/catalogue.json"
+    },
+    "api/history.mjs": {
+      "includeFiles": "public/catalogue.json"
+    },
+    "api/hotspots.mjs": {
+      "includeFiles": "public/catalogue.json"
     }
   },
   "headers": [
@@ -16,7 +22,7 @@
         { "key": "X-Content-Type-Options", "value": "nosniff" },
         { "key": "Referrer-Policy", "value": "same-origin" },
         { "key": "Permissions-Policy", "value": "camera=(self), microphone=(), geolocation=()" },
-        { "key": "Content-Security-Policy", "value": "default-src 'self'; img-src 'self' blob: data: https://*.blob.vercel-storage.com https://interieur-ia.aurimmo.fr; connect-src 'self' https://*.blob.vercel-storage.com; style-src 'self'; script-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'" }
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; img-src 'self' blob: data: https://*.blob.vercel-storage.com https://interieur-ia.aurimmo.fr https://m.media-amazon.com; connect-src 'self' https://*.blob.vercel-storage.com; style-src 'self'; script-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'" }
       ]
     }
   ]

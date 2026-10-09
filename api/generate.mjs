@@ -10,7 +10,7 @@ const MAX_SOURCE_BYTES=3_700_000;
 const MAX_REFERENCE_BYTES=6_000_000;
 const MAX_TOTAL_REFERENCE_BYTES=42_000_000;
 const MAX_RESULT_BYTES=20_000_000;
-const ALLOWED_IMAGE_HOSTS=new Set(['interieur-ia.aurimmo.fr']);
+const ALLOWED_IMAGE_HOSTS=new Set(['interieur-ia.aurimmo.fr','m.media-amazon.com']);
 let catalogueCache;
 
 async function catalogue() {
@@ -116,7 +116,7 @@ export default async function handler(req,res) {
     await put(resultPath,generated.bytes,{access:'private',contentType:'image/png',allowOverwrite:false});
     const record={schema_version:'aurimmo.public.run.v1',run_id:runId,trace_id:traceId,provider:body.provider,program:body.program,include_tv:Boolean(body.include_tv),surfaces:body.surfaces,
       selection_fingerprint:body.selection_fingerprint,product_ids:products.map(x=>x.catalog_id),source_path:body.room_path,result_path:resultPath,request_id:generated.request_id,
-      elapsed_ms:generated.elapsed_ms,usage:generated.usage,status:'render_saved_visual_review_pending',automatic_retries:0,created_at:new Date().toISOString()};
+      output_sha256:sha(generated.bytes),elapsed_ms:generated.elapsed_ms,usage:generated.usage,status:'render_saved_visual_review_pending',automatic_retries:0,created_at:new Date().toISOString()};
     await put(`runs/${runId}.json`,JSON.stringify(record),{access:'private',contentType:'application/json',allowOverwrite:false});
     return sendJSON(res,200,{run_id:runId,provider:body.provider,image_url:await signedRead(resultPath),selection_fingerprint:body.selection_fingerprint,products,
       elapsed_ms:generated.elapsed_ms,cost:body.provider==='muse'?{status:'published_flat_price',usd:0.01}:{status:'usage_based_reconcile',usage:generated.usage??null},review_status:'pending_human_review',automatic_retries:0});
