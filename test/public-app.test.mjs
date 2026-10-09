@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { __test } from '../api/generate.mjs';
 import { checkPassword } from '../api/_security.mjs';
-import { validPrivatePath } from '../api/delete.mjs';
+import { referencedPrivatePaths,validPrivatePath } from '../api/delete.mjs';
 
 const catalogue=JSON.parse(await readFile(new URL('../public/catalogue.json',import.meta.url),'utf8'));
 
@@ -34,7 +34,7 @@ test('exact frozen selection fingerprint is deterministic and provider independe
 
 test('generation validation requires one explicit confirmation and an exact selection',()=>{
   process.env.GENERATION_ENABLED='true';
-  const products=[catalogue.products.find(x=>x.role==='sofa'),catalogue.products.find(x=>x.role==='rug'),catalogue.products.find(x=>x.role==='floor_lamp')];
+  const products=['sofa','armchair','coffee_table','rug','floor_lamp','decorative_object'].map(role=>catalogue.products.find(x=>x.role===role&&x.selection_status!=='historical_run_only'));
   const index=new Map(products.map(product=>[product.catalog_id,product]));
   const base={provider:'openai',program:'living_conversation',include_tv:false,surfaces:{floor:'preserve',walls:'preserve'},room_path:'uploads/photo.jpg',width:1200,height:800,
     product_ids:products.map(x=>x.catalog_id),authorization_id:'11111111-1111-4111-8111-111111111111',confirm_paid_generation:true};
@@ -42,6 +42,8 @@ test('generation validation requires one explicit confirmation and an exact sele
   assert.deepEqual(__test.validateBody(base,index),products);
   assert.throws(()=>__test.validateBody({...base,confirm_paid_generation:false},index),/Confirmation payante/);
   assert.throws(()=>__test.validateBody({...base,selection_fingerprint:'0'.repeat(64)},index),/sélection figée/);
+  const incomplete={...base,product_ids:base.product_ids.slice(0,-1)};incomplete.selection_fingerprint=__test.sha(__test.canonicalSelection(incomplete,products.slice(0,-1)));
+  assert.throws(()=>__test.validateBody(incomplete,index),/rôles catalogue/);
 });
 
 test('prompt protects source architecture, fixed elements and merchant backgrounds',()=>{
@@ -70,7 +72,7 @@ test('the public page preserves the Aurimmo photo workflow and original styleshe
   assert.match(html,/data-image-provider="openai"/);
   assert.match(html,/data-image-provider="muse"/);
   const app=await readFile(new URL('../public/app.js',import.meta.url),'utf8');
-  assert.match(app,/renderCatalogueExplorer/);assert.match(app,/\/api\/hotspots/);assert.match(app,/Ouvrir avec les points/);
+  assert.match(app,/renderCatalogueExplorer/);assert.match(app,/\/api\/hotspots/);assert.match(app,/Ouvrir avec les points/);assert.match(app,/prepareRandomSelection/);assert.match(app,/Modifier ce produit/);assert.match(app,/product-hotspot-refresh/);
 });
 
 test('private deletion is restricted to exact upload and result paths',()=>{
@@ -79,6 +81,8 @@ test('private deletion is restricted to exact upload and result paths',()=>{
   assert.equal(validPrivatePath('../uploads/photo.jpg'),false);
   assert.equal(validPrivatePath('runs/run.json'),false);
   assert.equal(validPrivatePath('uploads/nested/photo.jpg'),false);
+  const protectedPaths=referencedPrivatePaths([{source_path:'uploads/photo.jpg',result_path:'results/run-123.png'}]);
+  assert.equal(protectedPaths.has('uploads/photo.jpg'),true);assert.equal(protectedPaths.has('results/run-123.png'),true);
 });
 
 test('application password accepts the configured 10+ character policy',()=>{

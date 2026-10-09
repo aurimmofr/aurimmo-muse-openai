@@ -10,6 +10,14 @@ cartes produits, panier local, carnet d'essai et comparaison côte à côte. Ell
 embarque les 4 192 références Salon/Japandi actives du catalogue local et garde
 séparément les références exactes nécessaires à la lecture des anciens rendus.
 
+Chaque nouvelle composition et chaque nouvelle génération tire aléatoirement une
+référence active pour chaque rôle du programme. Une référence peut être remplacée
+gratuitement depuis sa carte ou depuis son rond sur un ancien rendu. Le changement
+de moteur conserve exceptionnellement la sélection figée afin que la comparaison
+Muse / OpenAI porte bien sur les mêmes produits. Un rendu historique, sa photo
+source et ses points restent immuables ; un collègue connecté peut les rouvrir et
+créer une nouvelle composition dérivée sans modifier l'original.
+
 ## Sécurité
 
 - les clés API restent dans les variables d'environnement Vercel ;
@@ -36,7 +44,10 @@ exécute Grounding DINO + SAM hors ligne puis enregistre uniquement les position
 normalisées dans le Blob privé. Il n'appelle ni Muse ni OpenAI, n'envoie aucune
 image à une API de vision et omet tout produit non localisé avec assez de confiance.
 Le contrôle des rendus en attente a lieu toutes les cinq minutes ; l'interface
-publique actualise automatiquement les points pendant le traitement.
+publique actualise automatiquement les points pendant le traitement et propose
+aussi une actualisation manuelle. Les ronds sont visibles dans l'onglet du résultat,
+jamais sur la photo originale ni dans la vue de comparaison. Un produit ambigu ou
+non localisé est volontairement omis plutôt que placé approximativement.
 
 ```sh
 npm run hotspots:once    # traiter les rendus en attente puis quitter

@@ -636,6 +636,7 @@ h1 {
 .hotspot-cart-item p {color:var(--ink);font-size:12px;}
 .hotspot-cart-item>div {flex:1;min-width:0;}
 .hotspot-cart-remove {margin-left:auto;background:transparent;border:1px solid var(--line);border-radius:5px;padding:7px 10px;color:var(--error);font-size:11px;}
+.public-product-edit-button {margin-top:5px;text-align:left;color:var(--sage);font-weight:650;}
 @media (max-width:600px) {
   /* Reserve space outside the image pixels so every automatic point stays clickable. */
   .image-stage:has(.product-hotspot-tools:not(.hidden)) {margin-bottom:60px;}

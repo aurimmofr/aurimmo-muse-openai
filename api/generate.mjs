@@ -6,6 +6,12 @@ import { readJSON, requireAuth, requestId, sameOrigin, sendJSON } from './_secur
 const PROGRAMS=new Set(['living_conversation','living_reading','living_tv','living_dining']);
 const PROVIDERS=new Set(['openai','muse']);
 const SURFACES=new Set(['preserve','replace']);
+const PROGRAM_ROLES={
+  living_conversation:['sofa','armchair','coffee_table','rug','floor_lamp','decorative_object'],
+  living_reading:['armchair','side_table','floor_lamp','rug','bookcase','table_lamp'],
+  living_tv:['sofa','armchair','coffee_table','rug','floor_lamp','tv_unit'],
+  living_dining:['sofa','coffee_table','rug','dining_table','dining_chair','pendant'],
+};
 const MAX_SOURCE_BYTES=3_700_000;
 const MAX_REFERENCE_BYTES=6_000_000;
 const MAX_TOTAL_REFERENCE_BYTES=42_000_000;
@@ -23,17 +29,20 @@ async function catalogue() {
 function sha(value){return createHash('sha256').update(value).digest('hex');}
 function dataURL(bytes,type){return `data:${type};base64,${bytes.toString('base64')}`;}
 function canonicalSelection(body,products){return JSON.stringify({program:body.program,include_tv:Boolean(body.include_tv),surfaces:body.surfaces,products:products.map(x=>({catalog_id:x.catalog_id,role:x.role,quantity:x.quantity}))});}
+function expectedRoles(body){const roles=[...PROGRAM_ROLES[body.program]];if(body.program==='living_dining'&&body.include_tv)roles.push('tv_unit');if(body.surfaces.floor==='replace')roles.push('floor_finish');if(body.surfaces.walls==='replace')roles.push('wall_finish');return roles;}
 
 function validateBody(body,index) {
   if(process.env.GENERATION_ENABLED!=='true')throw Object.assign(new Error('Les générations sont désactivées.'),{status:503});
   if(body.confirm_paid_generation!==true)throw Object.assign(new Error('Confirmation payante explicite requise.'),{status:409});
-  if(!PROVIDERS.has(body.provider)||!PROGRAMS.has(body.program))throw Object.assign(new Error('Moteur ou programme invalide.'),{status:400});
+  if(!PROVIDERS.has(body.provider)||!PROGRAMS.has(body.program)||typeof body.include_tv!=='boolean'||body.include_tv&&body.program!=='living_dining')throw Object.assign(new Error('Moteur, programme ou option TV invalide.'),{status:400});
   if(!body.surfaces||!SURFACES.has(body.surfaces.floor)||!SURFACES.has(body.surfaces.walls))throw Object.assign(new Error('Choix de surfaces invalide.'),{status:400});
   if(typeof body.room_path!=='string'||!/^uploads\/[a-zA-Z0-9._-]+$/.test(body.room_path))throw Object.assign(new Error('Photo privée invalide.'),{status:400});
   if(!Number.isInteger(body.width)||!Number.isInteger(body.height)||body.width<320||body.height<320||body.width>5000||body.height>5000)throw Object.assign(new Error('Dimensions de photo invalides.'),{status:400});
   if(!Array.isArray(body.product_ids)||body.product_ids.length<3||body.product_ids.length>9||new Set(body.product_ids).size!==body.product_ids.length)throw Object.assign(new Error('Sélection catalogue invalide.'),{status:400});
   const products=body.product_ids.map(id=>index.get(id));
   if(products.some(product=>!product))throw Object.assign(new Error('Référence catalogue inconnue.'),{status:400});
+  const required=expectedRoles(body),actual=products.map(product=>product.role);
+  if(required.length!==actual.length||required.some(role=>actual.filter(value=>value===role).length!==1)||actual.some(role=>!required.includes(role)))throw Object.assign(new Error('Les rôles catalogue ne couvrent pas exactement le programme et les surfaces.'),{status:409});
   const expected=sha(canonicalSelection(body,products));
   if(body.selection_fingerprint!==expected)throw Object.assign(new Error('La sélection figée a changé.'),{status:409});
   if(typeof body.authorization_id!=='string'||!/^[a-f0-9-]{36}$/.test(body.authorization_id))throw Object.assign(new Error('Autorisation de génération invalide.'),{status:400});

@@ -95,6 +95,7 @@
           <div id="product-hotspot-layer" class="product-hotspot-layer hidden" aria-label="Produits repérés dans le rendu"></div>
           <div id="product-hotspot-tools" class="product-hotspot-tools hidden" aria-label="Points produits">
             <button id="product-hotspot-toggle" class="product-hotspot-tool" type="button" aria-pressed="true" aria-controls="product-hotspot-layer">Masquer les points</button>
+            <button id="product-hotspot-refresh" class="product-hotspot-tool" type="button">Actualiser les ronds</button>
             <button id="product-hotspot-cart" class="product-hotspot-tool" type="button" aria-expanded="false" aria-controls="product-hotspot-cart-panel">Panier · 0</button>
           </div>
           <section id="product-hotspot-card" class="product-hotspot-card hidden" role="dialog" aria-modal="false" aria-labelledby="product-hotspot-card-title"></section>
@@ -137,7 +138,7 @@
           <p id="automatic-policy-note" class="field-note automatic-policy-note">Tout le mobilier et les objets décoratifs sont renouvelés. Architecture, ouvertures et installations fixes conservées ; sol et murs selon vos choix.</p>
           <div class="dynamic-primary-actions">
             <button id="dynamic-generate-button" class="button button-primary" type="button" disabled><span>Générer l’image</span><svg width="19" height="19" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M3 10h13m-5-5 5 5-5 5" stroke="currentColor" stroke-width="1.5"/></svg></button>
-            <button id="replay-render-button" class="button button-secondary hidden" type="button" disabled><span>Refaire ce rendu avec les mêmes produits</span><small>Image payante</small></button>
+            <button id="replay-render-button" class="button button-secondary hidden" type="button" disabled><span>Nouvelle génération aléatoire</span><small>Nouveaux produits · 1 image payante</small></button>
             <button id="flux3-only-button" class="button button-primary hidden" type="button" disabled><span>Action historique indisponible</span></button>
             <p id="automatic-paid-note" class="paid-note">Un clic prend en charge la sélection nécessaire puis un seul rendu avec le moteur actif. Aucun autre moteur et aucune relance automatique.</p>
             <p id="dynamic-stage" class="dynamic-stage" role="status" aria-live="polite">Choisissez un aménagement avant de générer.</p>

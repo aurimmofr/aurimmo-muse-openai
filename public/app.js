@@ -1,3 +1,5 @@
+import {selectProductsByRole} from './random-selection.mjs';
+
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
 
@@ -33,10 +35,10 @@ function savedCart() {
 
 const state = {
   catalogue:[], catalogueRoles:[], catalogueActiveTotal:0, catalogueHistoricalTotal:0, providers:{}, generationEnabled:false, provider:'openai', programme:null, includeTV:false,
-  surfaces:{floor:'preserve',walls:'preserve'}, variant:0, forcedByRole:{}, selection:[], fingerprint:null,
-  photoPath:null, photoURL:null, photoName:null, width:null, height:null,
+  surfaces:{floor:'preserve',walls:'preserve'}, forcedByRole:{}, selection:[], fingerprint:null, selectionOrigin:null, compositionVersion:0,
+  photoPath:null, photoURL:null, photoName:null, width:null, height:null, photoDeletable:false,
   results:{}, history:[], view:'original', compare:false, busy:false, initialized:false, cart:savedCart(),
-  explorer:{query:'',role:'',page:0,limit:18},hotspots:new Map(),hotspotVisible:true,hotspotTimer:null,hotspotPollingRun:null,
+  explorer:{query:'',role:'',page:0,limit:18},hotspots:new Map(),hotspotVisible:true,hotspotTimer:null,hotspotPollingRun:null,historyOpenToken:0,
 };
 
 async function api(path,options={}) {
@@ -83,16 +85,16 @@ function hideUnsupportedControls() {
     '#dynamic-pool-section','#historical-reference-panel','#historical-uncertainties','#tab-reference',
     '#reference-thumbnail','#flux3-only-button'
   ]) $(selector)?.classList.add('hidden');
-  $('#selection-preview-note').textContent='Les références ci-dessous sont choisies localement et gratuitement. Aucun appel IA n’est lancé pour les consulter.';
+  $('#selection-preview-note').textContent='Chaque nouvelle composition tire gratuitement des références actives au hasard. Vous pouvez ensuite remplacer chaque produit avant un nouveau rendu.';
   const composition=$('#new-composition-button');
   composition.querySelector('span').textContent='Proposer une autre composition';
   composition.querySelector('small').textContent='Local · gratuit';
-  composition.nextElementSibling.textContent='Une autre composition change les références localement et conserve tous vos réglages.';
+  composition.nextElementSibling.textContent='Une autre composition tire de nouvelles références actives au hasard et conserve tous vos réglages.';
   $('#history-case-label').textContent='Rendus de cette session protégée';
   $('#history-all').closest('label').classList.add('hidden');
   $('#case-description').textContent='La photo reste privée. L’import ne lance aucun moteur d’image.';
   const technicalParagraphs=$$('.technical-details p');
-  if(technicalParagraphs[0])technicalParagraphs[0].textContent='L’import et les réglages restent gratuits. Chaque clic sur « Générer l’image » autorise un seul rendu avec le moteur choisi, sans relance automatique. La sélection catalogue figée reste identique pour comparer Muse et OpenAI.';
+  if(technicalParagraphs[0])technicalParagraphs[0].textContent='L’import et les réglages restent gratuits. Une nouvelle composition utilise un tirage aléatoire de références actives, modifiable avant un nouveau rendu. Chaque clic de génération autorise une seule image, sans relance automatique ; la comparaison Muse/OpenAI réutilise exceptionnellement la même composition figée.';
 }
 
 function createAuthOverlay(message='') {
@@ -139,12 +141,12 @@ function renderProgrammes() {
       const checkbox=node('input');checkbox.type='checkbox';checkbox.checked=state.includeTV;checkbox.setAttribute('aria-label','Ajouter une télévision générique au salon et espace repas');
       optionLabel.append(checkbox,node('span','', 'Ajouter une TV générique'));option.append(optionLabel);
       checkbox.addEventListener('click',event=>event.stopPropagation());
-      checkbox.addEventListener('change',async()=>{state.includeTV=checkbox.checked;state.variant=0;await rebuildSelection();renderProgrammes();renderCatalogueExplorer();});
+      checkbox.addEventListener('change',async()=>{state.includeTV=checkbox.checked;await refreshSelectionForSettings();renderProgrammes();renderCatalogueExplorer();});
       label.append(option);
     }
     radio.addEventListener('change',async()=>{
-      state.programme=programme.id;state.includeTV=false;state.variant=0;state.forcedByRole={};await rebuildSelection();renderProgrammes();renderCatalogueExplorer();
-      $('#programme-message').textContent='Programme enregistré pour cette photo. La sélection est prête gratuitement.';
+      state.programme=programme.id;state.includeTV=false;await prepareRandomSelection();renderProgrammes();renderCatalogueExplorer();
+      $('#programme-message').textContent='Programme enregistré. Une sélection aléatoire active est prête gratuitement et reste modifiable.';
     });
     container.append(label);
   }
@@ -165,22 +167,31 @@ async function digest(value) {
   return [...new Uint8Array(bytes)].map(value=>value.toString(16).padStart(2,'0')).join('');
 }
 
-async function rebuildSelection({clearResults=true}={}) {
+async function rebuildSelection({clearResults=true,randomize=false,avoidSelection=[]}={}) {
   if(!state.programme){state.selection=[];state.fingerprint=null;renderProducts();updateInterface();return;}
-  const byRole=new Map();
-  for(const product of state.catalogue){if(product.selection_status==='historical_run_only')continue;if(!byRole.has(product.role))byRole.set(product.role,[]);byRole.get(product.role).push(product);}
-  state.selection=requiredRoles().map((role,index)=>{
-    const choices=byRole.get(role)||[];
-    if(!choices.length)throw new Error(`Aucune référence ${ROLE_LABELS[role]||role} n’est disponible.`);
-    const forced=choices.find(product=>product.catalog_id===state.forcedByRole[role]);
-    if(forced)return forced;
-    return choices[(state.variant+index)%choices.length];
-  });
+  state.selection=selectProductsByRole({catalogue:state.catalogue,roles:requiredRoles(),forcedByRole:state.forcedByRole,currentSelection:state.selection,avoidSelection,randomize});
   const canonical=JSON.stringify({program:state.programme,include_tv:Boolean(state.includeTV),surfaces:state.surfaces,
     products:state.selection.map(product=>({catalog_id:product.catalog_id,role:product.role,quantity:product.quantity}))});
   state.fingerprint=await digest(canonical);
   if(clearResults){state.results={};state.compare=false;state.view='original';}
   renderProducts();renderResults();updateInterface();
+}
+
+async function prepareRandomSelection() {
+  const previous=[...state.selection];state.forcedByRole={};state.selectionOrigin='random';state.compositionVersion+=1;
+  await rebuildSelection({randomize:true,avoidSelection:previous});
+}
+
+async function refreshSelectionForSettings() {
+  state.selectionOrigin=Object.keys(state.forcedByRole).length?'edited':'random';state.compositionVersion+=1;
+  await rebuildSelection();
+}
+
+function editProduct(product) {
+  state.explorer.query='';state.explorer.role=product.role;state.explorer.page=0;
+  $('#catalogue-query').value='';$('#catalogue-role').value=product.role;$('#catalogue-explorer-details').open=true;renderCatalogueExplorer();
+  setFeedback('Choisissez une autre référence',`Le catalogue affiche les alternatives ${ROLE_LABELS[product.role]||product.role}. Le rendu existant et ses points restent inchangés dans le carnet.`);
+  $('#catalogue-explorer-section').scrollIntoView({behavior:'smooth',block:'start'});
 }
 
 function productCard(product) {
@@ -198,7 +209,8 @@ function productCard(product) {
     state.cart=inCart?state.cart.filter(id=>id!==product.catalog_id):[...new Set([...state.cart,product.catalog_id])];
     localStorage.setItem('aurimmo-public-cart',JSON.stringify(state.cart));renderProducts();
   });
-  article.append(image,top,name,description,id,bottom,cart);return article;
+  const edit=node('button','text-button public-product-edit-button','Modifier ce produit');edit.type='button';edit.addEventListener('click',()=>editProduct(product));
+  article.append(image,top,name,description,id,bottom,edit,cart);return article;
 }
 
 function renderProducts() {
@@ -206,7 +218,8 @@ function renderProducts() {
   if(!state.selection.length)container.append(node('div','catalogue-loading','Choisissez un aménagement pour préparer gratuitement les références.'));
   else for(const product of state.selection)container.append(productCard(product));
   $('#product-count').textContent=`${state.selection.length} référence${state.selection.length>1?'s':''}`;
-  $('#catalogue-intro').textContent=state.selection.length?`${state.selection.length} références figées pour ${programmeLabel().toLowerCase()}. Les mêmes produits seront transmis à Muse et OpenAI.`:'Les produits apparaîtront après le choix de l’aménagement.';
+  const origin=state.selectionOrigin==='history'?'Composition d’un rendu existant':state.selectionOrigin==='edited'?'Composition personnalisée':`Composition aléatoire n°${Math.max(1,state.compositionVersion)}`;
+  $('#catalogue-intro').textContent=state.selection.length?`${origin} · ${state.selection.length} références figées pour ${programmeLabel().toLowerCase()}. Chaque produit peut être remplacé ; une comparaison Muse/OpenAI conserve exactement cette version.`:'Les produits apparaîtront après le choix de l’aménagement.';
   const finishes=state.selection.filter(product=>['floor_finish','wall_finish'].includes(product.role));
   const panel=$('#surface-plan-panel');panel.classList.toggle('hidden',!finishes.length);
   $('#surface-plan-details').replaceChildren(...finishes.map(product=>node('p','',`${ROLE_LABELS[product.role]} : ${product.product_name} · ${product.retailer}`)));
@@ -241,7 +254,7 @@ function renderCatalogueExplorerOptions() {
 async function chooseCatalogueProduct(product) {
   if(!requiredRoles().includes(product.role))return;
   state.forcedByRole[product.role]=product.catalog_id;
-  await rebuildSelection();renderCatalogueExplorer();
+  state.selectionOrigin='edited';state.compositionVersion+=1;await rebuildSelection();renderCatalogueExplorer();
   $('#selection-preview-panel').open=true;
   setFeedback('Référence choisie',`${product.product_name} remplace la référence ${ROLE_LABELS[product.role]||product.role} de cette composition. Aucun appel IA n’a été lancé.`);
   $('#catalogue').scrollIntoView({behavior:'smooth',block:'start'});
@@ -295,21 +308,27 @@ function markReady(iconSelector,statusSelector,label,ready=true) {
 
 function updateReadiness() {
   const configured=Boolean(state.providers[state.provider]?.configured)&&state.generationEnabled;
-  markReady('#key-icon','#key-status',state.selection.length?'Figée':'En attente',Boolean(state.selection.length));
+  const selectionLabel=state.selectionOrigin==='edited'?'Personnalisée':state.selection.length?'Aléatoire figée':'En attente';
+  markReady('#key-icon','#key-status',selectionLabel,Boolean(state.selection.length));
   markReady('#flux-key-icon','#flux-key-status',configured?'Prêt':'Non configuré',configured);
   markReady('#integrity-icon','#integrity-status',state.photoPath?'Photo privée prête':'Photo attendue',Boolean(state.photoPath));
   markReady('#catalogue-icon','#catalogue-status',state.catalogueActiveTotal?`${state.catalogueActiveTotal.toLocaleString('fr-FR')} actives`:'Indisponible',Boolean(state.catalogueActiveTotal));
-  const fullyReady=configured&&state.photoPath&&state.programme&&state.fingerprint;
+  const fullyReady=configured&&state.photoPath&&Number.isInteger(state.width)&&Number.isInteger(state.height)&&state.programme&&state.fingerprint;
   const pill=$('#readiness-pill');pill.className=`readiness-pill${fullyReady?'':' loading'}`;pill.textContent=fullyReady?'Prêt à générer':'Préparation';
   $('#config-help').classList.toggle('hidden',configured);
 }
 
+function resultMatchesDraft(result) {
+  return Boolean(result&&result.selection_fingerprint===state.fingerprint&&result.source_path===state.photoPath);
+}
+
 function updateGenerate() {
   const button=$('#dynamic-generate-button'),label=button.querySelector('span'),configured=Boolean(state.providers[state.provider]?.configured)&&state.generationEnabled;
-  const previous=state.results[state.provider]?.selection_fingerprint===state.fingerprint;let text=`Générer avec ${providerLabel()}`;
+  const previous=resultMatchesDraft(state.results[state.provider]);let text=`Générer avec ${providerLabel()}`;
   if(!state.photoPath)text='Prendre ou ajouter une photo';else if(!state.programme)text='Choisir un aménagement';
   else if(!configured)text=`${providerLabel()} non configuré`;else if(previous)text=`Rendu ${providerLabel()} obtenu`;
-  label.textContent=text;button.disabled=state.busy||!state.photoPath||!state.programme||!state.fingerprint||!configured||previous;
+  const dimensionsReady=Number.isInteger(state.width)&&Number.isInteger(state.height);
+  label.textContent=text;button.disabled=state.busy||!state.photoPath||!dimensionsReady||!state.programme||!state.fingerprint||!configured||previous;
   const replay=$('#replay-render-button');replay.classList.toggle('hidden',!previous||!state.photoPath);replay.disabled=state.busy||!configured||!previous||!state.photoPath;
   const stage=$('#dynamic-stage');
   if(state.busy)stage.textContent=`${providerLabel()} génère l’image. Aucun retry automatique.`;
@@ -323,8 +342,8 @@ function updateGenerate() {
 function updateInterface() { renderEngine();renderSurfaceMessage();updateReadiness();updateGenerate();renderCart(); }
 
 function currentResult() {
-  const exact=state.results[state.provider];if(exact?.selection_fingerprint===state.fingerprint)return exact;
-  return Object.values(state.results).find(result=>result.selection_fingerprint===state.fingerprint)||null;
+  const exact=state.results[state.provider];if(resultMatchesDraft(exact))return exact;
+  return Object.values(state.results).find(result=>resultMatchesDraft(result))||null;
 }
 
 function setStageImage(url,{href=url,badge,caption,dimensions,alt}) {
@@ -347,7 +366,7 @@ function setView(view) {
 
 function showComparison() {
   const openai=state.results.openai,muse=state.results.muse;
-  if(!openai||!muse||openai.selection_fingerprint!==state.fingerprint||muse.selection_fingerprint!==state.fingerprint)return;
+  if(!resultMatchesDraft(openai)||!resultMatchesDraft(muse))return;
   state.view='result';state.compare=true;$('#stage-link').classList.add('hidden');$('#provider-comparison').classList.remove('hidden');$('#image-stage').classList.add('comparing');
   $('#provider-first-image').src=openai.image_url;$('#provider-first-link').href=openai.image_url;$('#provider-first-cost').textContent=costLabel(openai);
   $('#provider-second-image').src=muse.image_url;$('#provider-second-link').href=muse.image_url;$('#provider-second-cost').textContent=costLabel(muse);
@@ -378,7 +397,8 @@ function openHotspotCard(point,payload,button) {
   const link=node('a','product-link','Voir la fiche ↗');link.href=product.product_url;link.target='_blank';link.rel='noopener noreferrer';body.append(link);
   const inCart=state.cart.includes(product.catalog_id),add=node('button','hotspot-card-add',inCart?'Retirer du panier local':'Ajouter au panier local');add.type='button';
   add.addEventListener('click',()=>{state.cart=inCart?state.cart.filter(id=>id!==product.catalog_id):[...new Set([...state.cart,product.catalog_id])];localStorage.setItem('aurimmo-public-cart',JSON.stringify(state.cart));renderCart();closeHotspotCard();});
-  body.append(add);card.append(title,close,photo,body);card.classList.remove('hidden');
+  const edit=node('button','text-button public-product-edit-button','Modifier ce produit');edit.type='button';edit.addEventListener('click',()=>{closeHotspotCard();editProduct(product);});
+  body.append(edit,add);card.append(title,close,photo,body);card.classList.remove('hidden');
   const rect=containedImageRect(),stage=$('#image-stage').getBoundingClientRect(),dimensions=card.getBoundingClientRect();if(!rect)return;
   const x=rect.left+rect.width*point.x,y=rect.top+rect.height*point.y,placeRight=x+dimensions.width+32<stage.width;
   const left=Math.min(Math.max(10,placeRight?x+22:x-dimensions.width-22),Math.max(10,stage.width-dimensions.width-10));
@@ -410,7 +430,7 @@ function ensureHotspots(result) {
   const poll=async attempt=>{
     try {
       const payload=await api(`/api/hotspots?run_id=${encodeURIComponent(result.run_id)}`);state.hotspots.set(result.run_id,payload);updateHotspotNotice();
-      if(payload.localization?.status==='pending'&&attempt<120&&currentResult()?.run_id===result.run_id)state.hotspotTimer=setTimeout(()=>poll(attempt+1),7000);
+      if(payload.localization?.status==='pending'&&attempt<300&&currentResult()?.run_id===result.run_id)state.hotspotTimer=setTimeout(()=>poll(attempt+1),7000);
       else state.hotspotPollingRun=null;
     } catch(error) {
       state.hotspots.set(result.run_id,{run_id:result.run_id,products:result.products||[],hotspots:[],localization:{status:'failed'},error:error.message});state.hotspotPollingRun=null;updateHotspotNotice();
@@ -427,7 +447,7 @@ function updateHotspotNotice() {
   if(!visible)status.textContent='';
   else if(!payload||payload.localization?.status==='pending')status.textContent='Repérage automatique en cours sur l’image finale · vision hors ligne hébergée, sans nouvel appel Muse/OpenAI.';
   else if(payload.localization?.status==='failed')status.textContent=`Le repérage des produits a échoué ; le rendu reste intact et aucun point approximatif n’a été ajouté.${payload.error?` ${payload.error}`:''}`;
-  else if(payload.hotspots.length)status.textContent=`${payload.hotspots.length} point${payload.hotspots.length>1?'s':''} automatique${payload.hotspots.length>1?'s':''} · cliquez sur un point bleu pour voir la référence exacte.`;
+  else if(payload.hotspots.length)status.textContent=`${payload.hotspots.length} produit${payload.hotspots.length>1?'s':''} localisé${payload.hotspots.length>1?'s':''} sur ${payload.products.length} · cliquez sur un rond bleu pour voir la référence exacte.`;
   else status.textContent='Aucun produit n’a été localisé avec assez de confiance ; aucun point inventé n’a été ajouté.';
   renderHotspots();if(visible&&!payload)ensureHotspots(result);
 }
@@ -437,7 +457,7 @@ function renderResults() {
   $('#tab-result').disabled=!result;$('#tab-result').tabIndex=result?0:-1;$('#result-dot').classList.toggle('hidden',!result);
   if(result){thumbnail.src=result.image_url;thumbnail.classList.remove('hidden');empty.classList.add('hidden');}
   else {thumbnail.removeAttribute('src');thumbnail.classList.add('hidden');empty.classList.remove('hidden');}
-  const pair=['openai','muse'].every(provider=>state.results[provider]?.selection_fingerprint===state.fingerprint);
+  const pair=['openai','muse'].every(provider=>resultMatchesDraft(state.results[provider]));
   const compare=$('#compare-provider-results');compare.classList.toggle('hidden',!pair);compare.setAttribute('aria-pressed',String(state.compare));
   if(state.view==='result')state.compare&&pair?showComparison():setView('result');else setView('original');
 }
@@ -453,17 +473,28 @@ function renderHistory() {
     const row=node('article','history-row'),image=node('img');image.src=result.image_url;image.alt=`Rendu ${providerLabel(result.provider)}`;
     const copy=node('div'),title=node('h3','',`${providerLabel(result.provider)} · ${programmeLabel(result.program)}`),status=node('span','history-state pending','Revue humaine');title.append(status);
     copy.append(title,node('p','history-meta',`${new Date(result.created_at).toLocaleString('fr-FR')} · ${result.products.length} références · ${Math.round(result.elapsed_ms/1000)} s · ${costLabel(result)}`));
-    const actions=node('div','history-actions'),open=node('button','text-button','Ouvrir avec les points');open.type='button';open.addEventListener('click',()=>openHistoryResult(result));
+    const actions=node('div','history-actions'),open=node('button','text-button','Ouvrir avec les points');open.type='button';open.addEventListener('click',()=>openHistoryResult(result).catch(error=>setFeedback('Rendu indisponible',error.message,{error:true})));
     const link=node('a','', 'Image ↗');link.href=result.image_url;link.target='_blank';link.rel='noopener';actions.append(open,link);row.append(image,copy,actions);container.append(row);
   }
 }
 
-function openHistoryResult(result) {
+async function imageDimensions(url) {
+  return new Promise((resolve,reject)=>{const image=new Image();image.onload=()=>resolve({width:image.naturalWidth,height:image.naturalHeight});image.onerror=()=>reject(new Error('La photo source privée ne peut pas être relue.'));image.src=url;});
+}
+
+async function openHistoryResult(result) {
+  const token=++state.historyOpenToken;let dimensions={width:null,height:null};
+  if(result.source_image_url)try{dimensions=await imageDimensions(result.source_image_url);}catch{}
+  if(token!==state.historyOpenToken)return;
   clearHotspotPolling();state.provider=result.provider;state.programme=result.program;state.includeTV=Boolean(result.include_tv);state.surfaces=result.surfaces||{floor:'preserve',walls:'preserve'};
   state.selection=result.products;state.fingerprint=result.selection_fingerprint;state.forcedByRole=Object.fromEntries(result.products.map(product=>[product.role,product.catalog_id]));
-  state.results={};for(const item of state.history.filter(item=>item.selection_fingerprint===result.selection_fingerprint))state.results[item.provider]=item;
+  state.selectionOrigin='history';state.compositionVersion+=1;state.photoPath=result.source_path||null;state.photoURL=result.source_image_url||null;state.photoName=`Photo du rendu ${result.run_id}`;state.photoDeletable=false;
+  Object.assign(state,dimensions);
+  state.results={};for(const item of state.history.filter(item=>item.selection_fingerprint===result.selection_fingerprint&&item.source_path===result.source_path))state.results[item.provider]=item;
   state.results[result.provider]=result;state.view='result';state.compare=false;
   for(const input of $$('[data-surface]'))input.checked=input.value===state.surfaces[input.dataset.surface];
+  $('#case-select').replaceChildren(new Option(state.photoName,state.photoName,true,true));$('#delete-photo-button').disabled=true;
+  if(state.photoURL)$('#original-thumbnail-image').src=state.photoURL;
   renderProgrammes();renderProducts();renderCatalogueExplorer();renderResults();updateInterface();setView('result');ensureHotspots(result);$('#workspace').scrollIntoView({behavior:'smooth',block:'start'});
 }
 
@@ -489,23 +520,23 @@ async function optimizePhoto(file) {
 async function uploadPhoto(file) {
   if(!/^image\/(jpeg|png|webp)$/.test(file.type))throw new Error('Choisissez une photo JPEG, PNG ou WebP.');
   $('#case-feedback').classList.remove('hidden');$('#case-feedback').textContent='Optimisation locale de la photo…';
-  const optimized=await optimizePhoto(file);$('#case-feedback').textContent='Envoi vers le stockage privé…';
+  const optimized=await optimizePhoto(file);state.historyOpenToken+=1;$('#case-feedback').textContent='Envoi vers le stockage privé…';
   const uploaded=await api('/api/upload',{method:'POST',headers:{'Content-Type':optimized.blob.type},body:optimized.blob});
-  if(state.photoURL)URL.revokeObjectURL(state.photoURL);
-  state.photoURL=URL.createObjectURL(optimized.blob);state.photoPath=uploaded.pathname;state.photoName=file.name;state.width=optimized.width;state.height=optimized.height;
+  if(state.photoURL?.startsWith('blob:'))URL.revokeObjectURL(state.photoURL);
+  state.photoURL=URL.createObjectURL(optimized.blob);state.photoPath=uploaded.pathname;state.photoName=file.name;state.width=optimized.width;state.height=optimized.height;state.photoDeletable=true;
   state.results={};state.compare=false;state.view='original';
   const select=$('#case-select');select.replaceChildren(new Option(file.name,file.name,true,true));
   $('#delete-photo-button').disabled=false;$('#case-feedback').textContent=`Photo privée prête · ${optimized.width} × ${optimized.height} · ${(optimized.blob.size/1024/1024).toFixed(2)} Mo. Aucun appel IA effectué.`;
-  $('#original-thumbnail-image').src=state.photoURL;setView('original');renderResults();updateInterface();
+  $('#original-thumbnail-image').src=state.photoURL;if(state.programme)await prepareRandomSelection();setView('original');renderResults();updateInterface();
 }
 
 async function deletePhoto() {
-  if(!state.photoPath)return;
+  if(!state.photoPath||!state.photoDeletable)return;
   $('#delete-photo-button').disabled=true;$('#case-feedback').classList.remove('hidden');$('#case-feedback').textContent='Suppression de la photo privée…';
   try {
     await api('/api/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({paths:[state.photoPath]})});
-    if(state.photoURL)URL.revokeObjectURL(state.photoURL);
-    Object.assign(state,{photoPath:null,photoURL:null,photoName:null,width:null,height:null,results:{},compare:false,view:'original'});
+    if(state.photoURL?.startsWith('blob:'))URL.revokeObjectURL(state.photoURL);
+    Object.assign(state,{photoPath:null,photoURL:null,photoName:null,width:null,height:null,photoDeletable:false,results:{},compare:false,view:'original'});
     $('#room-file').value='';$('#case-select').replaceChildren(new Option('Aucune photo ajoutée','',true,true));
     $('#original-thumbnail-image').src='/placeholder-room.svg';$('#case-feedback').textContent='Photo supprimée du stockage privé.';
     renderResults();updateInterface();
@@ -517,19 +548,21 @@ function setProgress(active=false,failed=false) {
   for(const item of $$('[data-generation-phase]'))item.className=failed&&item.dataset.generationPhase==='rendering'?'failed':active&&item.dataset.generationPhase==='rendering'?'current':'done';
 }
 
-async function generate({replay=false}={}) {
-  const existing=state.results[state.provider]?.selection_fingerprint===state.fingerprint;
-  if(state.busy||!state.photoPath||!state.fingerprint||(!replay&&existing))return;
-  state.busy=true;setProgress(true);updateInterface();setFeedback('Génération en cours',`${providerLabel()} reçoit la photo et les ${state.selection.length} références exactes. Un seul appel, sans retry.`,{busy:true});
+async function generate({fresh=false}={}) {
+  if(state.busy)return;state.busy=true;
   try {
+    if(fresh)await prepareRandomSelection();
+    const existing=resultMatchesDraft(state.results[state.provider]);
+    if(!state.photoPath||!state.fingerprint||existing)return;
+    setProgress(true);updateInterface();setFeedback('Génération en cours',`${providerLabel()} reçoit la photo et les ${state.selection.length} références exactes. Un seul appel, sans retry.`,{busy:true});
     const result=await api('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
       provider:state.provider,program:state.programme,include_tv:state.includeTV,surfaces:state.surfaces,room_path:state.photoPath,width:state.width,height:state.height,
       product_ids:state.selection.map(product=>product.catalog_id),selection_fingerprint:state.fingerprint,authorization_id:crypto.randomUUID(),confirm_paid_generation:true,
     })});
-    const complete={...result,program:state.programme,include_tv:state.includeTV,surfaces:{...state.surfaces},created_at:new Date().toISOString()};
-    state.results[state.provider]=complete;state.history.push(complete);state.view='result';state.compare=false;
+    const complete={...result,program:state.programme,include_tv:state.includeTV,surfaces:{...state.surfaces},source_path:state.photoPath,source_image_url:state.photoURL,created_at:new Date().toISOString()};
+    state.results[state.provider]=complete;state.history.push(complete);state.view='result';state.compare=false;state.photoDeletable=false;$('#delete-photo-button').disabled=true;
     $('#render-cost').textContent=costLabel(complete);renderHistory();renderResults();setView('result');ensureHotspots(complete);
-    setFeedback('Rendu reçu',`${providerLabel()} a livré une image. Vérifiez le poêle, l’architecture, les ouvertures, les fixes et chaque produit avant acceptation.`);
+    setFeedback('Rendu reçu',`${providerLabel()} a livré une image. Le repérage des ronds bleus démarre sur les pixels finaux ; vérifiez aussi le poêle, l’architecture, les ouvertures, les fixes et chaque produit.`);
     $('#workspace').scrollIntoView({behavior:'smooth',block:'start'});
   } catch(error) { setProgress(false,true);setFeedback('Génération arrêtée',error.message,{error:true}); }
   finally {state.busy=false;setProgress(false);updateInterface();}
@@ -545,17 +578,18 @@ function bindEvents() {
   $('#delete-photo-button').addEventListener('click',deletePhoto);
   for(const input of $$('[data-surface]'))input.addEventListener('change',async()=>{
     state.surfaces={floor:$('input[name="surface-floor"]:checked').value,walls:$('input[name="surface-walls"]:checked').value};
-    state.variant=0;await rebuildSelection();renderSurfaceMessage();renderCatalogueExplorer();
+    await refreshSelectionForSettings();renderSurfaceMessage();renderCatalogueExplorer();
   });
   $('#new-composition-button').addEventListener('click',async()=>{
-    state.variant+=1;state.forcedByRole={};await rebuildSelection();renderCatalogueExplorer();$('#selection-preview-panel').open=true;
-    setFeedback('Nouvelle composition prête','Les références ont changé localement. Aucun moteur d’image et aucun appel payant n’ont été lancés.');$('#catalogue').scrollIntoView({behavior:'smooth',block:'start'});
+    await prepareRandomSelection();renderCatalogueExplorer();$('#selection-preview-panel').open=true;
+    setFeedback('Nouvelle composition aléatoire prête','Chaque rôle utilise une nouvelle référence active lorsque le catalogue offre une alternative. Aucun moteur d’image et aucun appel payant n’ont été lancés.');$('#catalogue').scrollIntoView({behavior:'smooth',block:'start'});
   });
-  $('#dynamic-generate-button').addEventListener('click',()=>generate());$('#replay-render-button').addEventListener('click',()=>generate({replay:true}));
+  $('#dynamic-generate-button').addEventListener('click',()=>generate());$('#replay-render-button').addEventListener('click',()=>generate({fresh:true}));
   $('#tab-original').addEventListener('click',()=>setView('original'));$('#tab-result').addEventListener('click',()=>setView('result'));
   for(const item of $$('.comparison-item'))item.addEventListener('click',()=>setView(item.dataset.view));
   $('#compare-provider-results').addEventListener('click',()=>state.compare?setView('result'):showComparison());
   $('#product-hotspot-toggle').addEventListener('click',()=>{state.hotspotVisible=!state.hotspotVisible;updateHotspotNotice();});
+  $('#product-hotspot-refresh').addEventListener('click',()=>{const result=currentResult();if(!result)return;state.hotspots.delete(result.run_id);clearHotspotPolling();ensureHotspots(result);});
   $('#product-hotspot-cart').addEventListener('click',()=>{
     const panel=$('#product-hotspot-cart-panel'),opening=panel.classList.contains('hidden');panel.classList.toggle('hidden',!opening);$('#product-hotspot-cart').setAttribute('aria-expanded',String(opening));
   });

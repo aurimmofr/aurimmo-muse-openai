@@ -28,7 +28,7 @@ os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / "data/local-vision"
-ALGORITHM = "grounded-sam-interior-point-v1"
+ALGORITHM = "grounded-sam-interior-point-v2"
 ROLE_QUERIES = {
     "sofa": "sofa", "armchair": "armchair", "coffee_table": "coffee table",
     "tv_support": "tv cabinet", "tv_stand": "tv cabinet", "tv_unit": "tv cabinet", "rug": "rug",
@@ -55,8 +55,12 @@ def query_for_product(product):
     # Generic decorative objects remain intentionally unsupported, but a named
     # concrete typology may be grounded safely on final pixels. This supplies a
     # point for the selected object without claiming SKU fidelity.
-    if role == "decorative_object" and "elephant" in name and any(token in name for token in ("statuette", "figurine", "statue")):
-        return "elephant figurine"
+    if role == "decorative_object":
+        if "vase" in name: return "vase"
+        if any(token in name for token in ("bougeoir", "photophore", "chandelier")): return "candle holder"
+        if "elephant" in name and any(token in name for token in ("statuette", "figurine", "statue")): return "elephant figurine"
+        if "buste" in name: return "decorative bust"
+        if any(token in name for token in ("statuette", "figurine", "statue", "sculpture")): return "decorative sculpture"
     if role in ROLE_QUERIES:
         query = ROLE_QUERIES[role]
         # Decorative families must be grounded using their actual named typology.
