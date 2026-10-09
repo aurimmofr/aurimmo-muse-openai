@@ -326,14 +326,14 @@ function resultMatchesDraft(result) {
 function updateGenerate() {
   const button=$('#dynamic-generate-button'),label=button.querySelector('span'),configured=Boolean(state.providers[state.provider]?.configured)&&state.generationEnabled;
   const previous=resultMatchesDraft(state.results[state.provider]);let text=`Générer avec ${providerLabel()}`;
-  if(!state.photoPath)text='Prendre ou ajouter une photo';else if(!state.programme)text='Choisir un aménagement';
+  if(!state.photoPath)text='Prendre ou télécharger une photo';else if(!state.programme)text='Choisir un aménagement';
   else if(!configured)text=`${providerLabel()} non configuré`;else if(previous)text=`Rendu ${providerLabel()} obtenu`;
   const dimensionsReady=Number.isInteger(state.width)&&Number.isInteger(state.height);
   label.textContent=text;button.disabled=state.busy||!state.photoPath||!dimensionsReady||!state.programme||!state.fingerprint||!configured||previous;
   const replay=$('#replay-render-button');replay.classList.toggle('hidden',!previous||!state.photoPath);replay.disabled=state.busy||!configured||!previous||!state.photoPath;
   const stage=$('#dynamic-stage');
   if(state.busy)stage.textContent=`${providerLabel()} génère l’image. Aucun retry automatique.`;
-  else if(!state.photoPath)stage.textContent='Prenez ou ajoutez une photo pour commencer. L’import est gratuit.';
+  else if(!state.photoPath)stage.textContent='Prenez une photo ou téléchargez une image pour commencer. L’import est gratuit.';
   else if(!state.programme)stage.textContent='Choisissez un aménagement avant de générer.';
   else if(!configured)stage.textContent=`${providerLabel()} n’est pas configuré sur le serveur.`;
   else if(previous)stage.textContent=`Le rendu ${providerLabel()} est disponible. Changez de moteur pour comparer avec les mêmes produits.`;
@@ -539,7 +539,7 @@ async function deletePhoto() {
     await api('/api/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({paths:[state.photoPath]})});
     if(state.photoURL?.startsWith('blob:'))URL.revokeObjectURL(state.photoURL);
     Object.assign(state,{photoPath:null,photoURL:null,photoName:null,width:null,height:null,photoDeletable:false,results:{},compare:false,view:'original'});
-    $('#room-file').value='';$('#case-select').replaceChildren(new Option('Aucune photo ajoutée','',true,true));
+    $('#camera-file').value='';$('#room-file').value='';$('#case-select').replaceChildren(new Option('Aucune photo ajoutée','',true,true));
     $('#original-thumbnail-image').src='/placeholder-room.svg';$('#case-feedback').textContent='Photo supprimée du stockage privé.';
     renderResults();updateInterface();
   } catch(error) { $('#case-feedback').textContent=error.message;$('#delete-photo-button').disabled=false; }
@@ -575,8 +575,13 @@ function bindEvents() {
     state.provider=button.dataset.imageProvider;state.compare=false;renderEngine();renderResults();updateInterface();
     setFeedback('Moteur changé',`${providerLabel()} est sélectionné. Aucun appel n’a été effectué et les produits restent identiques.`);
   });
+  $('#camera-button').addEventListener('click',()=>$('#camera-file').click());
   $('#upload-button').addEventListener('click',()=>$('#room-file').click());
-  $('#room-file').addEventListener('change',async event=>{const file=event.target.files?.[0];if(!file)return;try{await uploadPhoto(file);}catch(error){$('#case-feedback').classList.remove('hidden');$('#case-feedback').textContent=error.message;}});
+  for(const input of [$('#camera-file'),$('#room-file')])input.addEventListener('change',async event=>{
+    const file=event.currentTarget.files?.[0];if(!file)return;
+    try{await uploadPhoto(file);}catch(error){$('#case-feedback').classList.remove('hidden');$('#case-feedback').textContent=error.message;}
+    finally{event.currentTarget.value='';}
+  });
   $('#delete-photo-button').addEventListener('click',deletePhoto);
   for(const input of $$('[data-surface]'))input.addEventListener('change',async()=>{
     state.surfaces={floor:$('input[name="surface-floor"]:checked').value,walls:$('input[name="surface-walls"]:checked').value};
@@ -611,7 +616,7 @@ async function initialize() {
   try {
     const [catalogue,status,history]=await Promise.all([api('/api/catalogue'),api('/api/status'),api('/api/history')]);
     state.catalogue=catalogue.products;state.catalogueRoles=catalogue.roles||[];state.catalogueActiveTotal=catalogue.active_total??catalogue.products.length;state.catalogueHistoricalTotal=catalogue.historical_run_only_total??0;state.providers=status.providers||{};state.generationEnabled=status.generation_enabled===true;state.history=history.runs||[];
-    $('#upload-button').disabled=false;$('#authentication-status').textContent='Session protégée active';$('#case-select').replaceChildren(new Option('Aucune photo ajoutée','',true,true));
+    $('#camera-button').disabled=false;$('#upload-button').disabled=false;$('#authentication-status').textContent='Session protégée active';$('#case-select').replaceChildren(new Option('Aucune photo ajoutée','',true,true));
     renderCatalogueExplorerOptions();renderCatalogueExplorer();renderProgrammes();renderProducts();renderHistory();updateInterface();
   } catch(error) {
     state.initialized=false;$('#connection-banner').textContent=error.message;$('#connection-banner').classList.remove('hidden');throw error;

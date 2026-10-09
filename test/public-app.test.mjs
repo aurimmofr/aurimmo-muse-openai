@@ -66,12 +66,18 @@ test('public source never contains local secrets or paid result data',async()=>{
 test('the public page preserves the Aurimmo photo workflow and original stylesheet',async()=>{
   const html=await readFile(new URL('../public/index.html',import.meta.url),'utf8');
   assert.match(html,/href="\/app\.css"/);
-  assert.match(html,/capture="environment"/);
-  assert.match(html,/Prendre ou ajouter une photo/);
+  assert.match(html,/id="camera-file"[^>]*capture="environment"/);
+  assert.match(html,/id="room-file"[^>]*type="file"[^>]*accept="image\/jpeg,image\/png,image\/webp"/);
+  assert.doesNotMatch(html,/id="room-file"[^>]*capture=/);
+  assert.match(html,/id="camera-button"[^>]*>[\s\S]*?Prendre une photo/);
+  assert.match(html,/id="upload-button"[^>]*>[\s\S]*?Télécharger une image/);
   assert.match(html,/id="programme-cards"/);
   assert.match(html,/data-image-provider="openai"/);
   assert.match(html,/data-image-provider="muse"/);
   const app=await readFile(new URL('../public/app.js',import.meta.url),'utf8');
+  assert.ok(app.includes("$('#camera-button').addEventListener('click',()=>$('#camera-file').click());"));
+  assert.ok(app.includes("$('#upload-button').addEventListener('click',()=>$('#room-file').click());"));
+  assert.match(app,/camera-button[^\n]*disabled=false;[^\n]*upload-button[^\n]*disabled=false/);
   assert.match(app,/renderCatalogueExplorer/);assert.match(app,/\/api\/hotspots/);assert.match(app,/Ouvrir avec les points/);assert.match(app,/prepareRandomSelection/);assert.match(app,/Modifier ce produit/);assert.match(app,/product-hotspot-refresh/);
 });
 
