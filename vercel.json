@@ -13,6 +13,9 @@
     },
     "api/hotspots.mjs": {
       "includeFiles": "public/catalogue.json"
+    },
+    "api/hotspots-retry.mjs": {
+      "includeFiles": "public/catalogue.json"
     }
   },
   "headers": [

@@ -11,13 +11,17 @@ export default async function handler(req,res) {
   const runId=query(req,'run_id');
   if(!validRunId(runId))return sendJSON(res,400,{error:'Identifiant de rendu invalide.'});
   try {
-    const [run,{index}]=await Promise.all([privateJSON(`runs/${runId}.json`),publicCatalogue()]);
+    const [run,{index},job]=await Promise.all([privateJSON(`runs/${runId}.json`),publicCatalogue(),privateJSON(`hotspot-jobs/${runId}.json`)]);
     if(!run||run.run_id!==runId)return sendJSON(res,404,{error:'Rendu introuvable.'});
     const products=(run.product_ids||[]).map(id=>index.get(id)).filter(Boolean);
     if(products.length!==(run.product_ids||[]).length)return sendJSON(res,409,{error:'Les références figées du rendu ne sont plus disponibles.'});
     const record=await privateJSON(`hotspots/${runId}.json`,2*1024*1024);
-    if(!record)return sendJSON(res,200,{schema_version:'aurimmo.public.hotspots.v1',run_id:runId,selection_fingerprint:run.selection_fingerprint,
-      image_sha256:run.output_sha256??null,products,hotspots:[],diagnostics:[],localization:{status:'pending',method:'automatic_offline_vision',paid_api_calls:0,image_uploads:0}});
+    if(!record) {
+      const jobStatus=job?.run_id===runId&&['queued','processing','failed'].includes(job.status)?job.status:'queued';
+      return sendJSON(res,200,{schema_version:'aurimmo.public.hotspots.v1',run_id:runId,selection_fingerprint:run.selection_fingerprint,
+        image_sha256:run.output_sha256??null,products,hotspots:[],diagnostics:[],localization:{status:jobStatus,method:'automatic_offline_vision',attempt:Number(job?.attempt)||0,
+          retryable:jobStatus==='failed'?job?.retryable!==false:true,updated_at:job?.updated_at??null,paid_api_calls:0,image_uploads:0}});
+    }
     const exactIds=Array.isArray(record.product_ids)&&record.product_ids.length===run.product_ids.length&&record.product_ids.every((id,index)=>id===run.product_ids[index]);
     if(record.run_id!==runId||record.selection_fingerprint!==run.selection_fingerprint||!exactIds||record.result_path!==run.result_path)
       return sendJSON(res,409,{error:'Les points disponibles ne correspondent pas au rendu figé.'});

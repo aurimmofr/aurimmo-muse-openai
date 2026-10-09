@@ -1,6 +1,7 @@
 import { get, issueSignedToken, presignUrl, put } from '@vercel/blob';
 import { createHash, randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
+import {dispatchHotspotWorker,preflightHotspotWorker} from './_hotspot-dispatch.mjs';
 import { readJSON, requireAuth, requestId, sameOrigin, sendJSON } from './_security.mjs';
 
 const PROGRAMS=new Set(['living_conversation','living_reading','living_tv','living_dining']);
@@ -114,6 +115,8 @@ export default async function handler(req,res) {
   const traceId=requestId(),runId=`run-${Date.now()}-${randomUUID()}`;let requestStarted=false;
   try {
     const body=await readJSON(req,128*1024),{index}=await catalogue(),products=validateBody(body,index);
+    const hotspotPreflight=await preflightHotspotWorker();
+    if(!hotspotPreflight.ready)throw Object.assign(new Error('Le worker de points produits est indisponible.'),{status:503});
     const guard={trace_id:traceId,run_id:runId,authorization_id:body.authorization_id,provider:body.provider,created_at:new Date().toISOString()};
     await put(`guards/${body.authorization_id}.json`,JSON.stringify(guard),{access:'private',contentType:'application/json',allowOverwrite:false});
     const room=await blobBytes(body.room_path,MAX_SOURCE_BYTES),references=[];let total=0;
@@ -127,8 +130,13 @@ export default async function handler(req,res) {
       selection_fingerprint:body.selection_fingerprint,product_ids:products.map(x=>x.catalog_id),source_path:body.room_path,result_path:resultPath,request_id:generated.request_id,
       output_sha256:sha(generated.bytes),elapsed_ms:generated.elapsed_ms,usage:generated.usage,status:'render_saved_visual_review_pending',automatic_retries:0,created_at:new Date().toISOString()};
     await put(`runs/${runId}.json`,JSON.stringify(record),{access:'private',contentType:'application/json',allowOverwrite:false});
+    const queuedAt=new Date().toISOString();
+    try {await put(`hotspot-jobs/${runId}.json`,JSON.stringify({schema_version:'aurimmo.public.hotspot-job.v1',run_id:runId,status:'queued',attempt:0,queued_at:queuedAt,updated_at:queuedAt}),{access:'private',contentType:'application/json',allowOverwrite:false});}catch{}
+    const hotspotDispatch=await dispatchHotspotWorker(runId);
+    try {await put(`hotspot-dispatches/${runId}.json`,JSON.stringify({schema_version:'aurimmo.public.hotspot-dispatch.v1',run_id:runId,status:hotspotDispatch.status,accepted:hotspotDispatch.accepted,http_status:hotspotDispatch.http_status??null,created_at:new Date().toISOString()}),{access:'private',contentType:'application/json',allowOverwrite:true});}catch{}
     return sendJSON(res,200,{run_id:runId,provider:body.provider,image_url:await signedRead(resultPath),selection_fingerprint:body.selection_fingerprint,products,
-      elapsed_ms:generated.elapsed_ms,cost:body.provider==='muse'?{status:'published_flat_price',usd:0.01}:{status:'usage_based_reconcile',usage:generated.usage??null},review_status:'pending_human_review',automatic_retries:0});
+      elapsed_ms:generated.elapsed_ms,cost:body.provider==='muse'?{status:'published_flat_price',usd:0.01}:{status:'usage_based_reconcile',usage:generated.usage??null},review_status:'pending_human_review',
+      hotspot_localization:{status:'queued',dispatch:hotspotDispatch.accepted?'accepted':'reconciliation_pending',paid_api_calls:0},automatic_retries:0});
   }catch(error){
     const status=Number(error.status)||500;
     return sendJSON(res,status,{error:status<500?error.message:requestStarted?`${error.message||'La génération a échoué.'} La facturation doit être vérifiée avant un nouvel essai.`:'La génération n’a pas démarré.',trace_id:traceId,request_started:requestStarted,automatic_retries:0});

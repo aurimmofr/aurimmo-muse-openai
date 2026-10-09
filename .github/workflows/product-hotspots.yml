@@ -2,16 +2,15 @@ name: Product hotspots
 
 on:
   workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Rendu prioritaire à localiser"
+        required: false
+        type: string
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "3,8,13,18,23,28,33,38,43,48,53,58 * * * *"
   push:
     branches: [main]
-    paths:
-      - ".github/workflows/product-hotspots.yml"
-      - "scripts/hotspot-bridge.mjs"
-      - "scripts/local-product-locator.py"
-      - "scripts/setup-local-product-locator.py"
-      - "scripts/local-product-locator-ci.requirements.txt"
 
 concurrency:
   group: product-hotspots
@@ -27,6 +26,7 @@ jobs:
     env:
       BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
       AURIMMO_LAB_ROOT: ${{ github.workspace }}
+      HOTSPOT_RUN_ID: ${{ github.event.inputs.run_id || '' }}
     steps:
       - uses: actions/checkout@v4
 

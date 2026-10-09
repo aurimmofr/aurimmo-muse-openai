@@ -34,7 +34,7 @@ function savedCart() {
 }
 
 const state = {
-  catalogue:[], catalogueRoles:[], catalogueActiveTotal:0, catalogueHistoricalTotal:0, providers:{}, generationEnabled:false, provider:'openai', programme:null, includeTV:false,
+  catalogue:[], catalogueRoles:[], catalogueActiveTotal:0, catalogueHistoricalTotal:0, providers:{}, generationEnabled:false, hotspotWorkerReady:false, provider:'openai', programme:null, includeTV:false,
   surfaces:{floor:'preserve',walls:'preserve'}, forcedByRole:{}, selection:[], fingerprint:null, selectionOrigin:null, compositionVersion:0,
   photoPath:null, photoURL:null, photoName:null, width:null, height:null, photoDeletable:false,
   results:{}, history:[], view:'original', compare:false, busy:false, initialized:false, cart:savedCart(),
@@ -308,10 +308,10 @@ function markReady(iconSelector,statusSelector,label,ready=true) {
 }
 
 function updateReadiness() {
-  const configured=Boolean(state.providers[state.provider]?.configured)&&state.generationEnabled;
+  const providerConfigured=Boolean(state.providers[state.provider]?.configured)&&state.generationEnabled,configured=providerConfigured&&state.hotspotWorkerReady;
   const selectionLabel=state.selectionOrigin==='edited'?'Personnalisée':state.selectionOrigin==='history'?'Historique figé':state.selection.length?'Aléatoire figée':'En attente';
   markReady('#key-icon','#key-status',selectionLabel,Boolean(state.selection.length));
-  markReady('#flux-key-icon','#flux-key-status',configured?'Prêt':'Non configuré',configured);
+  markReady('#flux-key-icon','#flux-key-status',configured?'Prêt':providerConfigured?'Points non configurés':'Non configuré',configured);
   markReady('#integrity-icon','#integrity-status',state.photoPath?'Photo privée prête':'Photo attendue',Boolean(state.photoPath));
   markReady('#catalogue-icon','#catalogue-status',state.catalogueActiveTotal?`${state.catalogueActiveTotal.toLocaleString('fr-FR')} actives`:'Indisponible',Boolean(state.catalogueActiveTotal));
   const fullyReady=configured&&state.photoPath&&Number.isInteger(state.width)&&Number.isInteger(state.height)&&state.programme&&state.fingerprint;
@@ -324,10 +324,10 @@ function resultMatchesDraft(result) {
 }
 
 function updateGenerate() {
-  const button=$('#dynamic-generate-button'),label=button.querySelector('span'),configured=Boolean(state.providers[state.provider]?.configured)&&state.generationEnabled;
+  const button=$('#dynamic-generate-button'),label=button.querySelector('span'),providerConfigured=Boolean(state.providers[state.provider]?.configured)&&state.generationEnabled,configured=providerConfigured&&state.hotspotWorkerReady;
   const previous=resultMatchesDraft(state.results[state.provider]);let text=`Générer avec ${providerLabel()}`;
   if(!state.photoPath)text='Prendre ou télécharger une photo';else if(!state.programme)text='Choisir un aménagement';
-  else if(!configured)text=`${providerLabel()} non configuré`;else if(previous)text=`Rendu ${providerLabel()} obtenu`;
+  else if(!providerConfigured)text=`${providerLabel()} non configuré`;else if(!state.hotspotWorkerReady)text='Points non configurés';else if(previous)text=`Rendu ${providerLabel()} obtenu`;
   const dimensionsReady=Number.isInteger(state.width)&&Number.isInteger(state.height);
   label.textContent=text;button.disabled=state.busy||!state.photoPath||!dimensionsReady||!state.programme||!state.fingerprint||!configured||previous;
   const replay=$('#replay-render-button');replay.classList.toggle('hidden',!previous||!state.photoPath);replay.disabled=state.busy||!configured||!previous||!state.photoPath;
@@ -335,7 +335,8 @@ function updateGenerate() {
   if(state.busy)stage.textContent=`${providerLabel()} génère l’image. Aucun retry automatique.`;
   else if(!state.photoPath)stage.textContent='Prenez une photo ou téléchargez une image pour commencer. L’import est gratuit.';
   else if(!state.programme)stage.textContent='Choisissez un aménagement avant de générer.';
-  else if(!configured)stage.textContent=`${providerLabel()} n’est pas configuré sur le serveur.`;
+  else if(!providerConfigured)stage.textContent=`${providerLabel()} n’est pas configuré sur le serveur.`;
+  else if(!state.hotspotWorkerReady)stage.textContent='La génération est bloquée tant que le worker de points produits n’est pas prêt.';
   else if(previous)stage.textContent=`Le rendu ${providerLabel()} est disponible. Changez de moteur pour comparer avec les mêmes produits.`;
   else stage.textContent=`Prêt. Ce clic autorise un seul appel image payant à ${providerLabel()}, sans relance automatique.`;
 }
@@ -431,7 +432,8 @@ function ensureHotspots(result) {
   const poll=async attempt=>{
     try {
       const payload=await api(`/api/hotspots?run_id=${encodeURIComponent(result.run_id)}`);state.hotspots.set(result.run_id,payload);updateHotspotNotice();
-      if(payload.localization?.status==='pending'&&attempt<300&&currentResult()?.run_id===result.run_id)state.hotspotTimer=setTimeout(()=>poll(attempt+1),7000);
+      const localization=payload.localization||{},active=['queued','pending','processing'].includes(localization.status)||localization.status==='failed'&&localization.retryable!==false;
+      if(active&&attempt<720&&currentResult()?.run_id===result.run_id)state.hotspotTimer=setTimeout(()=>poll(attempt+1),7000);
       else state.hotspotPollingRun=null;
     } catch(error) {
       state.hotspots.set(result.run_id,{run_id:result.run_id,products:result.products||[],hotspots:[],localization:{status:'failed'},error:error.message});state.hotspotPollingRun=null;updateHotspotNotice();
@@ -446,8 +448,10 @@ function updateHotspotNotice() {
   toggle.textContent=state.hotspotVisible?'Masquer les points':'Afficher les points';toggle.setAttribute('aria-pressed',String(state.hotspotVisible));toggle.disabled=!payload?.hotspots?.length;
   status.classList.toggle('error',payload?.localization?.status==='failed');
   if(!visible)status.textContent='';
-  else if(!payload||payload.localization?.status==='pending')status.textContent='Repérage automatique en cours sur l’image finale · vision hors ligne hébergée, sans nouvel appel Muse/OpenAI.';
-  else if(payload.localization?.status==='failed')status.textContent=`Le repérage des produits a échoué ; le rendu reste intact et aucun point approximatif n’a été ajouté.${payload.error?` ${payload.error}`:''}`;
+  else if(!payload||['queued','pending'].includes(payload.localization?.status))status.textContent='Rendu placé dans la file de repérage · vision hors ligne hébergée, sans nouvel appel Muse/OpenAI.';
+  else if(payload.localization?.status==='processing')status.textContent=`Repérage automatique en cours sur l’image finale${payload.localization.attempt?` · tentative locale ${payload.localization.attempt}`:''}.`;
+  else if(payload.localization?.status==='failed'&&payload.localization?.retryable!==false)status.textContent='Le worker a rencontré un incident ; une nouvelle tentative de repérage local est programmée. Le rendu payé reste intact.';
+  else if(payload.localization?.status==='failed')status.textContent='Le repérage des produits a échoué ; le rendu reste intact et aucun point approximatif n’a été ajouté.';
   else if(payload.hotspots.length)status.textContent=`${payload.hotspots.length} produit${payload.hotspots.length>1?'s':''} localisé${payload.hotspots.length>1?'s':''} sur ${payload.products.length} · cliquez sur un rond bleu pour voir la référence exacte.`;
   else status.textContent='Aucun produit n’a été localisé avec assez de confiance ; aucun point inventé n’a été ajouté.';
   renderHotspots();if(visible&&!payload)ensureHotspots(result);
@@ -596,7 +600,12 @@ function bindEvents() {
   for(const item of $$('.comparison-item'))item.addEventListener('click',()=>setView(item.dataset.view));
   $('#compare-provider-results').addEventListener('click',()=>state.compare?setView('result'):showComparison());
   $('#product-hotspot-toggle').addEventListener('click',()=>{state.hotspotVisible=!state.hotspotVisible;updateHotspotNotice();});
-  $('#product-hotspot-refresh').addEventListener('click',()=>{const result=currentResult();if(!result)return;state.hotspots.delete(result.run_id);clearHotspotPolling();ensureHotspots(result);});
+  $('#product-hotspot-refresh').addEventListener('click',async()=>{
+    const result=currentResult();if(!result)return;const button=$('#product-hotspot-refresh');button.disabled=true;
+    try {await api('/api/hotspots-retry',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({run_id:result.run_id})});state.hotspots.delete(result.run_id);clearHotspotPolling();ensureHotspots(result);}
+    catch(error){setFeedback('Repérage non relancé',error.message,{error:true});}
+    finally{button.disabled=false;}
+  });
   $('#product-hotspot-cart').addEventListener('click',()=>{
     const panel=$('#product-hotspot-cart-panel'),opening=panel.classList.contains('hidden');panel.classList.toggle('hidden',!opening);$('#product-hotspot-cart').setAttribute('aria-expanded',String(opening));
   });
@@ -615,7 +624,7 @@ async function initialize() {
   if(state.initialized)return;state.initialized=true;addSessionActions();
   try {
     const [catalogue,status,history]=await Promise.all([api('/api/catalogue'),api('/api/status'),api('/api/history')]);
-    state.catalogue=catalogue.products;state.catalogueRoles=catalogue.roles||[];state.catalogueActiveTotal=catalogue.active_total??catalogue.products.length;state.catalogueHistoricalTotal=catalogue.historical_run_only_total??0;state.providers=status.providers||{};state.generationEnabled=status.generation_enabled===true;state.history=history.runs||[];
+    state.catalogue=catalogue.products;state.catalogueRoles=catalogue.roles||[];state.catalogueActiveTotal=catalogue.active_total??catalogue.products.length;state.catalogueHistoricalTotal=catalogue.historical_run_only_total??0;state.providers=status.providers||{};state.generationEnabled=status.generation_enabled===true;state.hotspotWorkerReady=status.hotspots?.configured===true;state.history=history.runs||[];
     $('#camera-button').disabled=false;$('#upload-button').disabled=false;$('#authentication-status').textContent='Session protégée active';$('#case-select').replaceChildren(new Option('Aucune photo ajoutée','',true,true));
     renderCatalogueExplorerOptions();renderCatalogueExplorer();renderProgrammes();renderProducts();renderHistory();updateInterface();
   } catch(error) {

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { __test } from '../api/generate.mjs';
+import {__test as hotspotDispatchTest,dispatchHotspotWorker,preflightHotspotWorker} from '../api/_hotspot-dispatch.mjs';
 import { checkPassword } from '../api/_security.mjs';
 import { referencedPrivatePaths,validPrivatePath } from '../api/delete.mjs';
 
@@ -97,4 +98,28 @@ test('application password accepts the configured 10+ character policy',()=>{
   assert.equal(checkPassword('valid-pass1'),true);
   assert.equal(checkPassword('invalid-pass'),false);
   if(previous===undefined)delete process.env.APP_PASSWORD;else process.env.APP_PASSWORD=previous;
+});
+
+test('every saved render can dispatch the exact hotspot workflow without exposing its token',async()=>{
+  const calls=[],token='dispatch-token-value-for-test';
+  const fetchImpl=async(url,options)=>{calls.push({url,options});return {status:204};};
+  const runId='run-1791556528389-ecd5f826-8d46-4457-9cb3-d1280d4fe690',result=await dispatchHotspotWorker(runId,{fetchImpl,token});
+  assert.deepEqual(result,{accepted:true,status:'accepted',http_status:204});
+  assert.equal(calls.length,1);assert.equal(calls[0].url,`https://api.github.com/repos/${hotspotDispatchTest.REPOSITORY}/actions/workflows/${hotspotDispatchTest.WORKFLOW}/dispatches`);
+  assert.deepEqual(JSON.parse(calls[0].options.body),{ref:'main',inputs:{run_id:runId}});
+  assert.equal(calls[0].options.headers.Authorization,`Bearer ${token}`);assert.doesNotMatch(JSON.stringify(result),/dispatch-token/);
+});
+
+test('hotspot dispatch rejects invalid ids and preflights the active workflow before a paid render',async()=>{
+  let calls=0;assert.deepEqual(await dispatchHotspotWorker('../bad',{token:'dispatch-token-value-for-test',fetchImpl:async()=>{calls++;}}),{accepted:false,status:'invalid_run_id'});assert.equal(calls,0);
+  const preflight=await preflightHotspotWorker({token:'another-dispatch-token-for-test',now:1,fetchImpl:async()=>({ok:true,status:200,json:async()=>({state:'active'})})});
+  assert.equal(preflight.ready,true);assert.equal(preflight.status,'active');
+});
+
+test('hosted hotspot workflow has immediate dispatch, staggered reconciliation and explicit failures',async()=>{
+  const workflow=await readFile(new URL('../.github/workflows/product-hotspots.yml',import.meta.url),'utf8');
+  assert.match(workflow,/workflow_dispatch:[\s\S]*run_id:/);assert.match(workflow,/3,8,13,18,23,28,33,38,43,48,53,58/);assert.doesNotMatch(workflow,/push:[\s\S]{0,100}paths:/);
+  const worker=await readFile(new URL('../scripts/hotspot-bridge.mjs',import.meta.url),'utf8');
+  assert.match(worker,/hotspot-jobs/);assert.match(worker,/processing/);assert.match(worker,/failed/);assert.match(worker,/page\.hasMore/);assert.match(worker,/throw new Error\(`Repérage échoué/);
+  const app=await readFile(new URL('../public/app.js',import.meta.url),'utf8');assert.match(app,/\/api\/hotspots-retry/);assert.match(app,/hotspotWorkerReady/);assert.match(app,/\['queued','pending','processing'\]/);
 });
