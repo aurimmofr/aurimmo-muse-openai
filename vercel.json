@@ -3,10 +3,10 @@
   "functions": {
     "api/generate.mjs": {
       "maxDuration": 300,
-      "includeFiles": ["public/catalogue.json"]
+      "includeFiles": "public/catalogue.json"
     },
     "api/catalogue.mjs": {
-      "includeFiles": ["public/catalogue.json"]
+      "includeFiles": "public/catalogue.json"
     }
   },
   "headers": [
