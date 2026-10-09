@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Comparateur Aurimmo protégé : Muse Image et OpenAI Image.">
+  <title>Aurimmo · Muse / OpenAI</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Aurimmo Intérieur Lab"><span class="brand-mark">⌂</span><span><strong>aurimmo</strong><small>INTÉRIEUR LAB</small></span></a>
+    <div class="top-actions"><span class="online-dot"><i></i> Vercel protégé</span><button id="cart-button" class="link-button" hidden>Panier · <span id="cart-count">0</span></button><button id="logout-button" class="link-button" hidden>Se déconnecter</button></div>
+  </header>
+
+  <main id="app" hidden>
+    <section class="hero">
+      <p class="eyebrow">SALON · STYLE JAPANDI</p>
+      <h1>Comparez <em>Muse</em> et <em>OpenAI.</em></h1>
+      <p>Une même photo, un même programme, les mêmes surfaces et la même sélection catalogue figée. Chaque génération reste une action explicite et payante.</p>
+    </section>
+
+    <section class="panel engine-panel">
+      <p class="eyebrow">MOTEUR D’IMAGE</p>
+      <h2>Choisir le moteur</h2>
+      <div class="engine-grid" role="radiogroup" aria-label="Moteur d’image">
+        <button class="engine active" data-provider="openai" role="radio" aria-checked="true"><span class="radio"></span><span><strong>OpenAI Image</strong><small>ChatGPT Image</small></span></button>
+        <button class="engine" data-provider="muse" role="radio" aria-checked="false"><span class="radio"></span><span><strong>Muse Image</strong><small>Meta</small></span></button>
+      </div>
+      <p class="muted">Changer de moteur est gratuit. Les appels utilisent vos clés privées côté serveur et ne sont jamais relancés automatiquement.</p>
+    </section>
+
+    <section class="panel">
+      <div class="section-heading"><div><p class="eyebrow">01 · PHOTO</p><h2>Votre salon</h2></div><span class="free">Import privé</span></div>
+      <label class="upload-zone" id="upload-zone">
+        <input id="photo-input" type="file" accept="image/jpeg,image/png,image/webp">
+        <span class="upload-icon">＋</span><strong>Ajouter une photo</strong><small>Elle est optimisée dans votre navigateur puis stockée dans un espace Blob privé.</small>
+      </label>
+      <div id="photo-preview-wrap" class="photo-preview" hidden><img id="photo-preview" alt="Photo du salon"><div><strong id="photo-name"></strong><small id="photo-meta"></small><button id="replace-photo" class="secondary">Changer la photo</button></div></div>
+    </section>
+
+    <section class="panel">
+      <div class="section-heading"><div><p class="eyebrow">02 · PROGRAMME</p><h2>Quel usage pour ce salon ?</h2></div></div>
+      <div class="program-grid" id="program-grid">
+        <button data-program="living_conversation" class="program active"><strong>Conversation</strong><small>Canapé, fauteuils et table basse</small></button>
+        <button data-program="living_reading" class="program"><strong>Lecture</strong><small>Fauteuil, lumière et bibliothèque</small></button>
+        <button data-program="living_tv" class="program"><strong>Salon TV</strong><small>Assises orientées vers un écran générique</small></button>
+        <button data-program="living_dining" class="program"><strong>Salon + repas</strong><small>Deux fonctions dans une composition</small></button>
+      </div>
+      <label id="tv-option" class="check-row" hidden><input id="include-tv" type="checkbox"><span><strong>Ajouter une télévision générique</strong><small>Uniquement avec le programme Salon + repas ; aucune fausse référence catalogue.</small></span></label>
+    </section>
+
+    <section class="panel">
+      <div class="section-heading"><div><p class="eyebrow">03 · SURFACES</p><h2>Conserver ou modifier</h2></div></div>
+      <div class="surface-grid">
+        <fieldset><legend>Sol</legend><label><input type="radio" name="floor" value="preserve" checked> Conserver</label><label><input type="radio" name="floor" value="replace"> Modifier</label></fieldset>
+        <fieldset><legend>Murs</legend><label><input type="radio" name="walls" value="preserve" checked> Conserver</label><label><input type="radio" name="walls" value="replace"> Modifier</label></fieldset>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="section-heading"><div><p class="eyebrow">04 · PRODUITS</p><h2>Sélection catalogue figée</h2></div><button id="new-composition" class="secondary">Proposer une autre composition · Gratuit</button></div>
+      <p class="muted">La sélection est locale et identique pour les deux moteurs. Les photos marchandes servent uniquement à l’apparence des références.</p>
+      <div id="products" class="product-grid"></div>
+    </section>
+
+    <section class="panel generate-panel">
+      <div class="section-heading"><div><p class="eyebrow">05 · GÉNÉRATION</p><h2>Créer le rendu</h2></div><span id="provider-ready" class="status-pill">Vérification…</span></div>
+      <label class="paid-confirm"><input id="paid-confirm" type="checkbox"><span>Je confirme cet appel image payant unique. Aucun retry automatique.</span></label>
+      <button id="generate-button" class="primary" disabled>Ajouter une photo pour générer</button>
+      <p id="message" class="message" aria-live="polite"></p>
+    </section>
+
+    <section id="results-panel" class="panel" hidden>
+      <div class="section-heading"><div><p class="eyebrow">RÉSULTATS</p><h2>Comparer les moteurs</h2></div><button id="compare-toggle" class="secondary" hidden>Comparer côte à côte</button></div>
+      <div id="result-single" class="result-single"></div>
+      <div id="result-compare" class="result-compare" hidden></div>
+      <p class="notice">Les points produits ne sont jamais inventés. Sur Vercel, les références figées restent listées sous le rendu ; le placement automatique des points reste réservé au laboratoire local doté de la détection hors ligne.</p>
+      <div id="result-products" class="product-grid compact"></div>
+    </section>
+  </main>
+
+  <dialog id="login-dialog" class="login-dialog">
+    <form id="login-form" method="dialog">
+      <p class="eyebrow">ACCÈS PROTÉGÉ</p><h2>Aurimmo Intérieur Lab</h2>
+      <p>Entrez le mot de passe de l’application. Les générations utilisent les crédits du compte Aurimmo.</p>
+      <label>Mot de passe<input id="password" type="password" autocomplete="current-password" required minlength="12"></label>
+      <button class="primary" type="submit">Ouvrir l’application</button>
+      <p id="login-error" class="error" aria-live="polite"></p>
+    </form>
+  </dialog>
+
+  <dialog id="cart-dialog" class="cart-dialog"><div class="dialog-head"><h2>Panier local</h2><button id="close-cart" class="link-button">Fermer</button></div><div id="cart-items"></div><p class="notice">Aucun achat ni paiement n’est connecté.</p></dialog>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
