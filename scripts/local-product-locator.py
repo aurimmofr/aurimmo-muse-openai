@@ -28,7 +28,7 @@ os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / "data/local-vision"
-ALGORITHM = "grounded-sam-interior-point-v2"
+ALGORITHM = "grounded-sam-interior-point-v3"
 ROLE_QUERIES = {
     "sofa": "sofa", "armchair": "armchair", "coffee_table": "coffee table",
     "tv_support": "tv cabinet", "tv_stand": "tv cabinet", "tv_unit": "tv cabinet", "rug": "rug",
@@ -88,6 +88,10 @@ def box_iou(a, b):
     inter = max(0.0, min(a[2], b[2]) - max(a[0], b[0])) * max(0.0, min(a[3], b[3]) - max(a[1], b[1]))
     union = max(0.0, a[2]-a[0])*max(0.0,a[3]-a[1]) + max(0.0,b[2]-b[0])*max(0.0,b[3]-b[1]) - inter
     return inter / union if union else 0.0
+
+def overlaps_primary_detection(box, detections, threshold=0.35):
+    """Protect the primary requested object without treating weaker duplicates as truth."""
+    return bool(detections) and box_iou(box, detections[0]["bbox"]) > threshold
 
 def valid_product_identity(product):
     return (all(isinstance(product.get(key), str) and product[key] for key in ["candidate_key", "catalog_id", "role"])
@@ -204,7 +208,7 @@ def locate(payload, device_arg="auto", debug_path=None):
     # this is pixel inference only, never another selection/render API call.
     # An ordinary dining table response alone is deliberately insufficient.
     if "coffee table" in queries and not detections.get("coffee table"):
-        alias_text = "coffee table. low table. wooden table."
+        alias_text = "wooden coffee table. low table."
         alias_inputs = processor(images=image,text=alias_text,return_tensors="pt").to(device)
         with torch.inference_mode(): alias_outputs = model(**alias_inputs)
         alias_result = processor.post_process_grounded_object_detection(alias_outputs,alias_inputs.input_ids,
@@ -214,7 +218,7 @@ def locate(payload, device_arg="auto", debug_path=None):
             if not ("low" in text_label or "coffee" in text_label): continue
             candidate_box = [float(v) for v in box.cpu().tolist()]
             # A requested coffee table cannot borrow the dining-table box.
-            if any(box_iou(candidate_box,other["bbox"]) > 0.35 for other in detections.get("dining table",[])): continue
+            if overlaps_primary_detection(candidate_box, detections.get("dining table", [])): continue
             alternative.append({"bbox":candidate_box,"score":float(score.item()),"query":"coffee table (low table synonym)","matched_label":text_label})
         if alternative:
             detections["coffee table"] = sorted(alternative,key=lambda row:row["score"],reverse=True)[:1]

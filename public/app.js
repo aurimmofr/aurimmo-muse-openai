@@ -91,6 +91,7 @@ function hideUnsupportedControls() {
   composition.querySelector('small').textContent='Local · gratuit';
   composition.nextElementSibling.textContent='Une autre composition tire de nouvelles références actives au hasard et conserve tous vos réglages.';
   $('#history-case-label').textContent='Rendus de cette session protégée';
+  $('#history .eyebrow').textContent='HISTORIQUE PARTAGÉ';
   $('#history-all').closest('label').classList.add('hidden');
   $('#case-description').textContent='La photo reste privée. L’import ne lance aucun moteur d’image.';
   const technicalParagraphs=$$('.technical-details p');
@@ -308,7 +309,7 @@ function markReady(iconSelector,statusSelector,label,ready=true) {
 
 function updateReadiness() {
   const configured=Boolean(state.providers[state.provider]?.configured)&&state.generationEnabled;
-  const selectionLabel=state.selectionOrigin==='edited'?'Personnalisée':state.selection.length?'Aléatoire figée':'En attente';
+  const selectionLabel=state.selectionOrigin==='edited'?'Personnalisée':state.selectionOrigin==='history'?'Historique figé':state.selection.length?'Aléatoire figée':'En attente';
   markReady('#key-icon','#key-status',selectionLabel,Boolean(state.selection.length));
   markReady('#flux-key-icon','#flux-key-status',configured?'Prêt':'Non configuré',configured);
   markReady('#integrity-icon','#integrity-status',state.photoPath?'Photo privée prête':'Photo attendue',Boolean(state.photoPath));
@@ -469,7 +470,8 @@ function renderHistory() {
     const text=node('div');text.append(node('h3','', 'Aucun rendu dans cette session'),node('p','', 'Chaque résultat apparaîtra ici avec son moteur et sa sélection figée.'));
     empty.append(text);container.append(empty);return;
   }
-  for(const result of [...state.history].reverse()) {
+  const newestFirst=[...state.history].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+  for(const result of newestFirst) {
     const row=node('article','history-row'),image=node('img');image.src=result.image_url;image.alt=`Rendu ${providerLabel(result.provider)}`;
     const copy=node('div'),title=node('h3','',`${providerLabel(result.provider)} · ${programmeLabel(result.program)}`),status=node('span','history-state pending','Revue humaine');title.append(status);
     copy.append(title,node('p','history-meta',`${new Date(result.created_at).toLocaleString('fr-FR')} · ${result.products.length} références · ${Math.round(result.elapsed_ms/1000)} s · ${costLabel(result)}`));
