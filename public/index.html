@@ -3,94 +3,238 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="Comparateur Aurimmo protégé : Muse Image et OpenAI Image.">
-  <title>Aurimmo · Muse / OpenAI</title>
-  <link rel="stylesheet" href="/styles.css">
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#f5f2eb">
+  <meta name="description" content="Laboratoire local Aurimmo : préparer, générer et examiner un salon Japandi avec les produits du catalogue.">
+  <title>Aurimmo · Intérieur Lab</title>
+  <link rel="stylesheet" href="/app.css">
+  <script src="/app.js" type="module"></script>
 </head>
 <body>
-  <header class="topbar">
-    <a class="brand" href="/" aria-label="Aurimmo Intérieur Lab"><span class="brand-mark">⌂</span><span><strong>aurimmo</strong><small>INTÉRIEUR LAB</small></span></a>
-    <div class="top-actions"><span class="online-dot"><i></i> Vercel protégé</span><button id="cart-button" class="link-button" hidden>Panier · <span id="cart-count">0</span></button><button id="logout-button" class="link-button" hidden>Se déconnecter</button></div>
+  <a class="skip-link" href="#main">Aller au laboratoire</a>
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="Aurimmo Intérieur Lab, accueil">
+      <svg class="brand-mark" width="35" height="35" viewBox="0 0 35 35" fill="none" aria-hidden="true"><path d="M7 28V15C7 9.2 11.7 4.5 17.5 4.5S28 9.2 28 15V28M2 28H33M11.5 28V16.5C11.5 13.2 14.2 10.5 17.5 10.5S23.5 13.2 23.5 16.5V28" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="brand-name">aurimmo<span class="brand-subtitle">INTÉRIEUR LAB</span></span>
+    </a>
+    <nav class="header-nav" aria-label="Navigation locale">
+      <a href="#workspace">Le salon</a>
+      <a href="#catalogue">Les produits</a>
+      <a href="#history">Les essais</a>
+    </nav>
+    <span class="local-pill"><span class="status-dot"></span> Vercel · accès protégé</span>
   </header>
-
-  <main id="app" hidden>
-    <section class="hero">
-      <p class="eyebrow">SALON · STYLE JAPANDI</p>
-      <h1>Comparez <em>Muse</em> et <em>OpenAI.</em></h1>
-      <p>Une même photo, un même programme, les mêmes surfaces et la même sélection catalogue figée. Chaque génération reste une action explicite et payante.</p>
-    </section>
-
-    <section class="panel engine-panel">
-      <p class="eyebrow">MOTEUR D’IMAGE</p>
-      <h2>Choisir le moteur</h2>
-      <div class="engine-grid" role="radiogroup" aria-label="Moteur d’image">
-        <button class="engine active" data-provider="openai" role="radio" aria-checked="true"><span class="radio"></span><span><strong>OpenAI Image</strong><small>ChatGPT Image</small></span></button>
-        <button class="engine" data-provider="muse" role="radio" aria-checked="false"><span class="radio"></span><span><strong>Muse Image</strong><small>Meta</small></span></button>
+  <main id="main" class="page-shell">
+    <section class="introduction">
+      <div>
+        <p class="eyebrow"><span class="eyebrow-line"></span> SALON · STYLE JAPANDI</p>
+        <h1>Votre salon, <em>en Japandi.</em></h1>
+        <p class="intro-copy">Ajoutez votre photo, choisissez l’usage de votre futur salon, puis générez l’image.<br class="desktop-break"> Les produits sont sélectionnés automatiquement ; vous pouvez aussi les examiner avant le rendu.</p>
       </div>
-      <p class="muted">Changer de moteur est gratuit. Les appels utilisent vos clés privées côté serveur et ne sont jamais relancés automatiquement.</p>
+      <div class="case-tag"><span class="case-number">01</span><span>Salon + Japandi<small id="mode-tag">Sélection adaptée à votre photo</small></span></div>
     </section>
-
-    <section class="panel">
-      <div class="section-heading"><div><p class="eyebrow">01 · PHOTO</p><h2>Votre salon</h2></div><span class="free">Import privé</span></div>
-      <label class="upload-zone" id="upload-zone">
-        <input id="photo-input" type="file" accept="image/jpeg,image/png,image/webp">
-        <span class="upload-icon">＋</span><strong>Ajouter une photo</strong><small>Elle est optimisée dans votre navigateur puis stockée dans un espace Blob privé.</small>
-      </label>
-      <div id="photo-preview-wrap" class="photo-preview" hidden><img id="photo-preview" alt="Photo du salon"><div><strong id="photo-name"></strong><small id="photo-meta"></small><button id="replace-photo" class="secondary">Changer la photo</button></div></div>
-    </section>
-
-    <section class="panel">
-      <div class="section-heading"><div><p class="eyebrow">02 · PROGRAMME</p><h2>Quel usage pour ce salon ?</h2></div></div>
-      <div class="program-grid" id="program-grid">
-        <button data-program="living_conversation" class="program active"><strong>Conversation</strong><small>Canapé, fauteuils et table basse</small></button>
-        <button data-program="living_reading" class="program"><strong>Lecture</strong><small>Fauteuil, lumière et bibliothèque</small></button>
-        <button data-program="living_tv" class="program"><strong>Salon TV</strong><small>Assises orientées vers un écran générique</small></button>
-        <button data-program="living_dining" class="program"><strong>Salon + repas</strong><small>Deux fonctions dans une composition</small></button>
+    <div id="connection-banner" class="notice error hidden" role="alert"></div>
+    <section id="engine-switch" class="engine-switch" aria-labelledby="engine-switch-title">
+      <div class="engine-switch-copy"><span class="section-kicker">MOTEUR D’IMAGE</span><h2 id="engine-switch-title">Comparer Muse et OpenAI</h2><p>Les deux moteurs utilisent la même photo, le même programme, les mêmes surfaces et la même sélection catalogue figée.</p></div>
+      <div class="engine-switch-actions" role="group" aria-label="Choisir le moteur de génération d’image">
+        <button id="engine-openai" class="engine-choice" type="button" data-image-provider="openai" aria-pressed="false"><span class="engine-choice-dot" aria-hidden="true"></span><span><strong>OpenAI Image</strong><small>ChatGPT Image</small></span></button>
+        <button id="engine-muse" class="engine-choice" type="button" data-image-provider="muse" aria-pressed="false"><span class="engine-choice-dot" aria-hidden="true"></span><span><strong>Muse Image</strong><small>Meta</small></span></button>
       </div>
-      <label id="tv-option" class="check-row" hidden><input id="include-tv" type="checkbox"><span><strong>Ajouter une télévision générique</strong><small>Uniquement avec le programme Salon + repas ; aucune fausse référence catalogue.</small></span></label>
+      <p id="engine-switch-note" class="engine-switch-note" role="status">Le changement de moteur est gratuit et ne lance aucune génération.</p>
     </section>
-
-    <section class="panel">
-      <div class="section-heading"><div><p class="eyebrow">03 · SURFACES</p><h2>Conserver ou modifier</h2></div></div>
-      <div class="surface-grid">
-        <fieldset><legend>Sol</legend><label><input type="radio" name="floor" value="preserve" checked> Conserver</label><label><input type="radio" name="floor" value="replace"> Modifier</label></fieldset>
-        <fieldset><legend>Murs</legend><label><input type="radio" name="walls" value="preserve" checked> Conserver</label><label><input type="radio" name="walls" value="replace"> Modifier</label></fieldset>
+    <details class="mode-options hidden"><summary>Options du laboratoire</summary><section class="mode-controls" aria-label="Mode du laboratoire"><label for="mode-select">Mode de sélection</label><select id="mode-select"><option id="dynamic-mode-option" value="dynamic">Automatique · moteur choisi</option></select><p id="mode-description">Un clic prépare les candidats, choisit les produits, valide la sélection et génère un rendu avec le moteur actif.</p></section></details>
+    <section class="case-controls" aria-label="Choisir la photo du salon">
+      <div class="case-picker"><label for="case-select">Photo de salon</label><select id="case-select" disabled><option>Chargement des photos…</option></select><p id="case-description">Le cas historique reste conservé.</p></div>
+      <div class="upload-control"><input id="room-file" class="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" tabindex="-1" aria-label="Prendre ou choisir une nouvelle photographie de salon"><div class="photo-actions"><button id="upload-button" class="button button-secondary" type="button" disabled><span aria-hidden="true">＋</span><span>Prendre ou ajouter une photo</span><small>Gratuit</small></button><button id="delete-photo-button" class="button button-secondary delete-photo-button" type="button" disabled><span aria-hidden="true">×</span><span>Supprimer la photo</span><small>Privé</small></button></div><p>Appareil photo, JPEG, PNG ou WebP · optimisation avant l’envoi · aucune génération à l’import.</p></div>
+      <p id="case-feedback" class="case-feedback hidden" role="status" aria-live="polite"></p>
+    </section>
+    <section id="programme-section" class="programme-section" aria-labelledby="programme-title">
+      <fieldset class="programme-fieldset"><legend id="programme-title">Quel aménagement souhaites-tu créer ?</legend>
+        <p class="programme-intro">Choisissez un usage pour cette photo. Le style reste Japandi.</p>
+        <div id="programme-cards" class="programme-cards"><p class="field-note">Chargement des aménagements disponibles…</p></div>
+      </fieldset>
+      <p id="programme-summary" class="programme-summary" aria-live="polite">Choisissez un aménagement avant de générer.</p>
+      <p id="programme-message" class="programme-message field-note" role="status" aria-live="polite"></p>
+      <p id="legacy-programme-note" class="field-note hidden">Sélection héritée : aucun usage n’avait été choisi. Elle reste consultable ; choisissez un aménagement pour une nouvelle proposition.</p>
+      <div class="surface-options" aria-label="Choisir le traitement des surfaces">
+        <fieldset class="surface-fieldset"><legend>Sol</legend><div class="surface-cards">
+          <label class="programme-card surface-card selected"><input type="radio" name="surface-floor" value="preserve" data-surface="floor" checked><span class="programme-card-copy"><strong>Conserver</strong><span class="programme-description">Garder le sol de la photo.</span></span></label>
+          <label class="programme-card surface-card"><input type="radio" name="surface-floor" value="replace" data-surface="floor"><span class="programme-card-copy"><strong>Modifier</strong><span class="programme-description">Choisir une nouvelle finition dans le catalogue.</span></span></label>
+        </div></fieldset>
+        <fieldset class="surface-fieldset"><legend>Murs</legend><div class="surface-cards">
+          <label class="programme-card surface-card selected"><input type="radio" name="surface-walls" value="preserve" data-surface="walls" checked><span class="programme-card-copy"><strong>Conserver</strong><span class="programme-description">Garder les finitions de la photo.</span></span></label>
+          <label class="programme-card surface-card"><input type="radio" name="surface-walls" value="replace" data-surface="walls"><span class="programme-card-copy"><strong>Modifier</strong><span class="programme-description">Choisir une nouvelle finition dans le catalogue.</span></span></label>
+        </div></fieldset>
       </div>
+      <p id="surface-message" class="programme-message field-note" role="status" aria-live="polite">Sol et murs conservés. Ces deux choix sont indépendants.</p>
     </section>
-
-    <section class="panel">
-      <div class="section-heading"><div><p class="eyebrow">04 · PRODUITS</p><h2>Sélection catalogue figée</h2></div><button id="new-composition" class="secondary">Proposer une autre composition · Gratuit</button></div>
-      <p class="muted">La sélection est locale et identique pour les deux moteurs. Les photos marchandes servent uniquement à l’apparence des références.</p>
-      <div id="products" class="product-grid"></div>
+    <section id="workspace" class="workspace" aria-label="Préparer un salon Japandi">
+      <div class="visual-panel">
+        <div class="visual-topbar">
+          <span class="section-kicker">VOTRE PIÈCE</span>
+          <div class="view-tabs" role="tablist" aria-label="Images de comparaison">
+            <button id="tab-original" class="view-tab active" type="button" role="tab" aria-selected="true" aria-controls="image-stage" data-view="original">Original</button>
+            <button id="tab-reference" class="view-tab" type="button" role="tab" aria-selected="false" aria-controls="image-stage" data-view="reference" tabindex="-1">Référence</button>
+            <button id="tab-result" class="view-tab" type="button" role="tab" aria-selected="false" aria-controls="image-stage" data-view="result" tabindex="-1">Votre résultat <span id="result-dot" class="result-dot hidden"></span></button>
+          </div>
+          <button id="compare-provider-results" class="provider-compare-toggle hidden" type="button" aria-pressed="false">Comparer Muse / OpenAI</button>
+        </div>
+        <div id="image-stage" class="image-stage" role="tabpanel" aria-labelledby="tab-original">
+          <a id="stage-link" href="/placeholder-room.svg" target="_blank" rel="noopener" aria-label="Ouvrir la photographie originale à sa résolution complète"><img id="stage-image" class="stage-image" src="/placeholder-room.svg" width="1200" height="675" alt="Ajoutez ou prenez une photographie de votre salon"></a>
+          <div id="provider-comparison" class="provider-comparison hidden" aria-label="Comparaison des rendus OpenAI Image et Muse Image">
+            <figure><figcaption id="provider-first-label">OpenAI Image</figcaption><a id="provider-first-link" target="_blank" rel="noopener"><img id="provider-first-image" alt="Rendu intérieur généré par OpenAI Image"></a><span id="provider-first-cost" class="provider-cost"></span></figure>
+            <figure><figcaption id="provider-second-label">Muse Image</figcaption><a id="provider-second-link" target="_blank" rel="noopener"><img id="provider-second-image" alt="Rendu intérieur généré par Muse Image"></a><span id="provider-second-cost" class="provider-cost"></span></figure>
+          </div>
+          <div id="stage-empty" class="stage-empty hidden">
+            <svg width="48" height="48" viewBox="0 0 48 48" fill="none" aria-hidden="true"><rect x="6" y="8" width="36" height="32" rx="2" stroke="currentColor" stroke-width="1.25"/><circle cx="16" cy="18" r="3" stroke="currentColor" stroke-width="1.25"/><path d="m7 33 11-9 8 6 7-7 9 10" stroke="currentColor" stroke-width="1.25"/></svg>
+            <h2>Aucun rendu API généré</h2>
+            <p>Votre premier résultat apparaîtra ici<br>après le lancement de l’essai.</p>
+          </div>
+          <span id="stage-badge" class="image-badge">PHOTO ORIGINALE</span>
+          <span id="stage-open-label" class="image-open-label">↗ Agrandir</span>
+          <div id="product-hotspot-layer" class="product-hotspot-layer hidden" aria-label="Produits repérés dans le rendu"></div>
+          <div id="product-hotspot-tools" class="product-hotspot-tools hidden" aria-label="Points produits">
+            <button id="product-hotspot-toggle" class="product-hotspot-tool" type="button" aria-pressed="true" aria-controls="product-hotspot-layer">Masquer les points</button>
+            <button id="product-hotspot-cart" class="product-hotspot-tool" type="button" aria-expanded="false" aria-controls="product-hotspot-cart-panel">Panier · 0</button>
+          </div>
+          <section id="product-hotspot-card" class="product-hotspot-card hidden" role="dialog" aria-modal="false" aria-labelledby="product-hotspot-card-title"></section>
+        </div>
+        <section id="product-hotspot-cart-panel" class="product-hotspot-cart-panel hidden" aria-labelledby="product-hotspot-cart-title"><div class="product-hotspot-cart-heading"><h3 id="product-hotspot-cart-title">Votre panier local</h3><button id="product-hotspot-cart-close" class="icon-button" type="button" aria-label="Fermer le panier">×</button></div><p>Liste de références uniquement. Aucun achat ni commande n’est effectué.</p><div id="product-hotspot-cart-items"></div></section>
+        <p id="product-hotspot-status" class="product-hotspot-status hidden" role="status" aria-live="polite"></p>
+        <div class="image-caption"><span id="stage-caption">Architecture, ouvertures, parquet et point de vue à conserver.</span><span id="stage-dimensions">1 200 × 675</span></div>
+        <div class="comparison-strip" aria-label="Aperçus des trois images">
+          <button class="comparison-item active" type="button" data-view="original" aria-label="Voir la photographie originale"><img id="original-thumbnail-image" src="/placeholder-room.svg" width="1200" height="675" alt=""><span><strong>01</strong> La pièce d’origine</span></button>
+          <button id="reference-thumbnail" class="comparison-item hidden" type="button" data-view="reference" aria-label="Référence historique non publiée"><img src="/placeholder-room.svg" width="1200" height="675" alt=""><span><strong>02</strong> Référence privée</span></button>
+          <button id="result-thumbnail" class="comparison-item" type="button" data-view="result" aria-label="Voir le nouveau résultat API"><div class="thumbnail-empty" aria-hidden="true">＋</div><img id="result-thumbnail-image" class="hidden" alt=""><span><strong>03</strong> Votre nouvel essai</span></button>
+        </div>
+        <div class="reference-note"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7.5" stroke="currentColor"/><path d="M10 9v5M10 5.7v1" stroke="currentColor" stroke-width="1.3"/></svg><p id="reference-note-text">Le rendu historique sert à la comparaison uniquement. Il n’est jamais envoyé au générateur.</p></div>
+      </div>
+      <aside class="test-panel" aria-labelledby="test-title">
+        <div class="test-heading"><span class="section-kicker">VOTRE ESSAI</span><span id="readiness-pill" class="readiness-pill loading">Vérification…</span></div>
+        <h2 id="test-title">De votre photo<br>au rendu Japandi.</h2>
+        <p id="panel-description" class="panel-description">La photo choisie, le style Japandi et les mêmes références catalogue.</p>
+        <div class="locked-selection"><div><span class="field-label">PIÈCE</span><strong>Salon</strong></div><div><span class="field-label">STYLE</span><strong>Japandi</strong></div><span id="selection-chip" class="fixed-chip">Sélection dynamique</span></div>
+        <p class="styles-note">20 styles enregistrés · Japandi seul testable à ce jalon.</p>
+        <div class="readiness-list">
+          <div class="readiness-row"><span id="key-icon" class="check-icon waiting" aria-hidden="true">·</span><span>Sélection catalogue figée</span><strong id="key-status">Vérification…</strong></div>
+          <div class="readiness-row"><span id="flux-key-icon" class="check-icon waiting" aria-hidden="true">·</span><span id="image-key-label">Moteur d’image actif</span><strong id="flux-key-status">Vérification…</strong></div>
+          <div class="readiness-row"><span id="integrity-icon" class="check-icon waiting" aria-hidden="true">·</span><span id="integrity-label">Sources et photo</span><strong id="integrity-status">Vérification…</strong></div>
+          <div class="readiness-row"><span id="catalogue-icon" class="check-icon waiting" aria-hidden="true">·</span><span>Références catalogue</span><strong id="catalogue-status">Vérification…</strong></div>
+        </div>
+        <div id="config-help" class="notice hidden"><p id="config-help-text">Le moteur d’image sélectionné n’est pas configuré sur le serveur.</p></div>
+        <button id="prepare-button" class="button button-secondary" type="button"><svg width="17" height="17" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m4 10 4 4 8-8" stroke="currentColor" stroke-width="1.5"/></svg><span>Vérifier la préparation</span><small>Gratuit</small></button>
+        <p id="prepare-feedback" class="action-feedback" role="status" aria-live="polite">Vérification locale, sans génération d’image.</p>
+        <div id="historical-cost-box" class="cost-box">
+          <div class="cost-heading"><span>Estimation de la sortie seule</span><strong id="output-cost">—</strong></div>
+          <p>Le prompt et les 5 images entrantes s’ajoutent.<br><strong>Le coût total reste inconnu avant l’appel.</strong></p>
+          <p class="budget-note">La cible de 0,10 € par image n’est pas garantie.</p>
+        </div>
+        <dl class="test-settings"><div><dt>Qualité</dt><dd id="setting-quality">high</dd></div><div><dt>Format</dt><dd id="setting-size">1536 × 864</dd></div><div><dt>Entrées</dt><dd id="setting-inputs">5 images</dd></div></dl>
+        <button id="run-button" class="button button-primary" type="button" disabled><span>Lancer un test API</span><svg width="19" height="19" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M3 10h13m-5-5 5 5-5 5" stroke="currentColor" stroke-width="1.5"/></svg></button>
+        <p id="historical-paid-note" class="paid-note">Une image payante · aucun retry automatique</p>
+        <section id="dynamic-workflow" class="dynamic-workflow" aria-labelledby="dynamic-title">
+          <h3 id="dynamic-title">Votre transformation.</h3>
+          <p id="automatic-policy-note" class="field-note automatic-policy-note">Tout le mobilier et les objets décoratifs sont renouvelés. Architecture, ouvertures et installations fixes conservées ; sol et murs selon vos choix.</p>
+          <div class="dynamic-primary-actions">
+            <button id="dynamic-generate-button" class="button button-primary" type="button" disabled><span>Générer l’image</span><svg width="19" height="19" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M3 10h13m-5-5 5 5-5 5" stroke="currentColor" stroke-width="1.5"/></svg></button>
+            <button id="replay-render-button" class="button button-secondary hidden" type="button" disabled><span>Refaire ce rendu avec les mêmes produits</span><small>Image payante</small></button>
+            <button id="flux3-only-button" class="button button-primary hidden" type="button" disabled><span>Action historique indisponible</span></button>
+            <p id="automatic-paid-note" class="paid-note">Un clic prend en charge la sélection nécessaire puis un seul rendu avec le moteur actif. Aucun autre moteur et aucune relance automatique.</p>
+            <p id="dynamic-stage" class="dynamic-stage" role="status" aria-live="polite">Choisissez un aménagement avant de générer.</p>
+            <details id="dynamic-failure-details" class="dynamic-failure-details hidden"><summary>Cause exacte et appels enregistrés</summary><p id="dynamic-failure-usage" class="field-note"></p><pre id="dynamic-failure-technical"></pre><p id="dynamic-failure-recovery" class="field-note"></p></details>
+            <ol id="automatic-progress" class="automatic-progress hidden" aria-label="Progression de la transformation">
+              <li data-generation-phase="preparing">Préparation des candidats</li><li data-generation-phase="selecting">Choix des produits</li><li data-generation-phase="validating">Validation de la sélection</li><li id="provider-progress-label" data-generation-phase="rendering">Rendu du moteur actif</li>
+            </ol>
+          </div>
+          <section id="proposal-recovery-panel" class="proposal-recovery-panel primary-recovery-panel hidden" aria-labelledby="proposal-recovery-title"><h4 id="proposal-recovery-title">Votre sélection a déjà été obtenue</h4><p id="proposal-recovery-description" class="field-note">Reprenez les produits par une vérification locale gratuite. Aucun nouvel appel de sélection ni aucune image ne sera lancé.</p><label id="proposal-recovery-label" for="proposal-recovery-select">Proposition à reprendre<select id="proposal-recovery-select"></select></label><p id="proposal-recovery-note" class="field-note"></p><button id="revalidate-proposal-button" class="button button-secondary" type="button" disabled>Reprendre la sélection déjà payée · Gratuit</button></section>
+          <section id="service-error-recovery-panel" class="proposal-recovery-panel primary-recovery-panel hidden" aria-labelledby="service-error-recovery-title"><h4 id="service-error-recovery-title">Un nouvel essai est possible</h4><p id="service-error-recovery-message" class="field-note"></p><p id="service-error-cost-notice" class="field-note"></p><button id="prepare-new-attempt-button" class="button button-secondary" type="button" disabled>Préparer un nouvel essai · Gratuit</button><p class="field-note">Ce clic conserve le coût précédent inconnu et prépare un nouvel essai sans appel IA. Vous déclencherez les appels payants séparément avec « Générer l’image ».</p></section>
+          <details id="selection-preview-panel" class="selection-preview-panel"><summary>Voir / personnaliser les produits avant de générer</summary>
+            <p id="selection-preview-note" class="field-note">La consultation est gratuite. Préparer une proposition utilise un appel de sélection IA ; aucune image de salon n’est générée.</p>
+            <button id="preview-propose-button" class="button button-secondary" type="button" disabled><span>Préparer une proposition</span><small>Sélection IA payante</small></button>
+            <figure id="selection-preview-figure" class="selection-preview-figure hidden"><a id="selection-preview-link" target="_blank" rel="noopener"><img id="selection-preview-image" alt="Références exactes des produits proposés avant leur mise en scène"></a><div id="selection-preview-pages"></div><figcaption id="selection-preview-caption" class="field-note"></figcaption></figure>
+            <a id="preview-personalize-link" class="product-link hidden" href="#catalogue">Personnaliser les produits proposés ↓</a>
+            <button id="new-composition-button" class="button button-secondary" type="button" disabled><span>Proposer une autre composition</span><small>Sélection IA payante</small></button>
+            <p class="field-note">Une autre composition demande au maximum une nouvelle sélection IA. Aucun rendu automatique.</p>
+          </details>
+          <details id="expert-workflow" class="expert-workflow"><summary>Options avancées et diagnostic</summary>
+          <details id="manual-workflow" class="constraint-details manual-workflow"><summary>Examiner les produits avant le rendu · facultatif</summary>
+            <p class="field-note">Ce parcours détaillé reste disponible pour intervenir sur les produits. Chaque appel payant y possède son propre bouton.</p>
+            <button id="expert-prepare-button" class="button button-secondary" type="button"><span>Préparer les candidats</span><small>Gratuit</small></button>
+            <button id="propose-button" class="button button-secondary" type="button" disabled><span>Proposer les produits</span><small>Appel IA payant</small></button>
+            <button id="accept-selection-button" class="button button-secondary" type="button" disabled><span>Accepter la sélection</span><small>Local</small></button>
+            <button id="dynamic-render-button" class="button button-primary" type="button" disabled><span>Générer avec cette sélection</span><small>Image payante</small></button>
+            <p id="direct-paid-note" class="paid-note">Transformation directe : une image payante après la proposition. Aucun retry automatique.</p>
+          </details>
+          <p id="legacy-policy-note" class="notice hidden">Cette sélection est antérieure au relooking complet. Elle reste figée avec sa politique d’origine. Préparez explicitement une nouvelle composition pour appliquer V2.</p>
+          <details id="preparation-settings" class="constraint-details preparation-settings"><summary>Paramètres pour la prochaine proposition</summary>
+          <form id="dynamic-constraints" class="constraint-form">
+            <label for="candidate-scope">Étendue de la présélection<select id="candidate-scope"><option value="compact">Compacte · jusqu’à 22 candidats</option><option value="balanced" selected>Équilibrée · jusqu’à 44 candidats</option><option value="wide">Large · jusqu’à 66 candidats</option></select></label>
+            <p class="field-note">Les quotas bornent les alternatives présentées. Le coin repas partage cette présélection ; vos références imposées s’ajoutent. Les données de variété restent consultables dans le diagnostic.</p>
+            <details class="constraint-details"><summary>Préciser la pièce et vos préférences</summary><div class="constraint-detail-content">
+              <p class="field-note">Informations facultatives renseignées par vous. La préparation gratuite ne déduit ni mesures ni profil depuis la photo. Le sélecteur IA examinera la photo lors de la génération automatique.</p>
+              <label for="composition-intent">Direction de composition<select id="composition-intent"><option value="adaptive">Adapter à la pièce</option><option value="light_wood">Bois clair et lignes légères</option><option value="soft_contrast">Bois soutenu et contraste doux</option><option value="organic_mineral">Formes organiques et matières minérales</option><option value="graphic_calm">Composition sobre et graphique</option></select></label>
+              <p class="field-note">Cette direction peut être adaptée si les produits ou la pièce ne conviennent pas. Aucun meuble n’est recoloré pour la satisfaire.</p>
+              <label for="history-user">Utilisateur local<input id="history-user" maxlength="100" value="local-user" autocomplete="off"></label>
+              <label for="history-project">Projet<input id="history-project" maxlength="100" value="aurimmo-lab" autocomplete="off"></label>
+              <p class="field-note">Ces identifiants séparent les propositions et leur historique local. Une autre pièce du même projet peut apporter un contexte secondaire ; les utilisateurs restent séparés.</p>
+              <label for="room-profile-space">Espace à meubler<select id="room-profile-space"><option value="unknown">Non renseigné</option><option value="compact">Compact</option><option value="standard">Standard</option><option value="spacious">Spacieux</option></select></label>
+              <label for="room-profile-palette">Palette souhaitée<select id="room-profile-palette"><option value="unknown">Non renseignée</option><option value="warm_neutral">Neutres chaleureux</option><option value="light_neutral">Neutres clairs</option><option value="dark_wood">Bois foncés et contrastes doux</option></select></label>
+              <label for="room-profile-wood">Tonalité du bois<select id="room-profile-wood"><option value="any">Sans préférence</option><option value="light">Bois clair</option><option value="dark">Bois foncé</option></select></label>
+            </div></details>
+            <label>Budget total meubles et décoration (€)<input id="furniture-budget" type="number" min="1" step="0.01" placeholder="Facultatif · inconnu si vide"></label>
+            <p class="field-note">Avec un budget, le programme garde un plan de fournitures fixe : le prix change les références, jamais le nombre d’objets. Si l’ensemble complet ne rentre pas, la génération s’arrête gratuitement. Sol, murs, livraison et pose restent hors total faute de métrés.</p>
+            <label>Produits exclus (identifiants catalogue)<textarea id="excluded-catalog-ids" rows="2" placeholder="Identifiants séparés par une virgule ou une ligne"></textarea></label>
+            <label>Produits imposés (identifiants catalogue)<textarea id="forced-catalog-ids" rows="2" placeholder="Facultatif · références vérifiées uniquement"></textarea></label>
+            <p id="forced-catalogue-note" class="field-note">L’explorateur ci-dessous permet d’ajouter des références ici. Retirez leur identifiant pour les libérer avant votre prochaine génération.</p>
+          </form></details>
+          <details id="workflow-diagnostics" class="workflow-diagnostics"><summary>Diagnostic de la préparation</summary><div id="dynamic-diagnostics" class="dynamic-diagnostics"></div><p id="variation-diagnostic" class="field-note"></p><div id="usage-ledger" class="usage-ledger"></div></details>
+          <button id="reject-proposal-button" class="text-button hidden" type="button" disabled>Refuser cette proposition · Local</button>
+          <section id="empty-route-panel" class="empty-route-panel" aria-labelledby="empty-route-title"><details id="empty-route-details"><summary id="empty-route-title">Vidage préalable · expérimental</summary><p id="empty-route-note" class="field-note">Pour les scènes difficiles : une image de vidage, votre revue de la base, puis une image d’ameublement. Deux images payantes au total, en plus d’un éventuel rendu direct déjà effectué. Les produits et leurs placements restent figés.</p><button id="set-empty-route-button" class="button button-secondary" type="button" disabled><span>Choisir le parcours de vidage</span><small>Local</small></button><p id="generation-route-label" class="field-note">Parcours normal : transformation directe.</p><button id="empty-button" class="button button-secondary hidden" type="button" disabled><span>Générer la base débarrassée</span><small>1 image payante</small></button>
+          <div id="empty-base-review" class="empty-base-review hidden"><a id="empty-base-link" target="_blank" rel="noopener"><img id="empty-base-image" alt="Base débarrassée à comparer à la photo originale"></a><p id="empty-base-status" class="field-note"></p><p class="field-note">Comparez à l’original. Les surfaces auparavant cachées sont reconstruites de façon plausible, sans certifier leur état réel.</p><fieldset class="review-checks"><legend>Valider la base avant l’ameublement</legend><label><input type="checkbox" data-empty-check="architecture"> Géométrie et cadrage préservés</label><label><input type="checkbox" data-empty-check="openings"> Portes et fenêtres préservées</label><label><input type="checkbox" data-empty-check="floor"> Sol et raccords cohérents</label><label><input type="checkbox" data-empty-check="fixed_elements"> Radiateurs, climatisation et éléments fixes présents</label><label><input type="checkbox" data-empty-check="removal"> Mobilier et objets décoratifs retirés</label></fieldset><label for="empty-review-note" class="review-note">Remarque sur la base<textarea id="empty-review-note" rows="2" maxlength="2000"></textarea></label><div class="review-buttons"><button id="accept-empty-button" class="button button-secondary" type="button" disabled>Valider cette base · Local</button><button id="reject-empty-button" class="text-button" type="button" disabled>Refuser la base</button></div></div>
+          <button id="furnish-button" class="button button-primary hidden" type="button" disabled><span>Ameubler la base validée</span><small>1 image payante</small></button></details></section>
+          </details>
+          <section id="result-review-controls" class="result-review-controls hidden" aria-labelledby="result-review-title"><h4 id="result-review-title">Accepter le résultat livré</h4><p id="result-review-status" class="field-note"></p><div id="result-tv-orientation-plan" class="result-tv-orientation-plan hidden"></div><fieldset class="review-checks"><legend>Après comparaison de la photo et des références</legend><label><input type="checkbox" data-result-check="architecture"> <span id="result-architecture-check-label">Architecture et finitions murales préservées</span></label><label><input type="checkbox" data-result-check="floor"> <span id="result-floor-check-label">Sol préservé</span></label><label><input type="checkbox" data-result-check="viewpoint"> Point de vue et cadrage préservés</label><label><input type="checkbox" data-result-check="fixed_elements"> Installations fixes conservées</label><label><input type="checkbox" data-result-check="removal"> Mobilier ciblé disparu</label><label><input type="checkbox" data-result-check="products"> <span id="result-products-check-label">Produits et composition fidèles aux références</span></label></fieldset><label for="result-review-note" class="review-note">Remarque sur le rendu<textarea id="result-review-note" rows="2" maxlength="2000"></textarea></label><div class="review-buttons"><button id="accept-result-button" class="button button-secondary" type="button" disabled>Accepter le résultat · Local</button><button id="reject-result-button" class="text-button" type="button" disabled>Refuser le résultat</button></div></section>
+          <div class="dynamic-costs"><p>Sélection catalogue : <strong id="selector-cost">Locale · gratuite</strong></p><p><span id="render-cost-label">Rendu du moteur actif</span> : <strong id="render-cost">Non effectué</strong></p><p id="render-cost-note" class="field-note">Le coût OpenAI dépend de l’usage retourné ; Muse est affiché selon le tarif configuré. Un usage absent reste inconnu.</p></div>
+          <p id="previous-service-error-notice" class="field-note hidden">Un appel de sélection précédent a échoué. Son coût inconnu reste compté dans le carnet ; le nouvel essai ne l’efface pas.</p>
+        </section>
+        <div id="run-feedback" class="run-feedback hidden" role="status" aria-live="polite"><span id="run-spinner" class="spinner hidden" aria-hidden="true"></span><div><strong id="run-feedback-title"></strong><p id="run-feedback-text"></p><span id="run-elapsed" class="run-elapsed hidden"></span></div></div>
+        <a id="review-link" class="review-link" href="/reviews/baseline/index.html" target="_blank" rel="noopener">Ouvrir la revue et sa grille de validation <span>↗</span></a>
+      </aside>
     </section>
-
-    <section class="panel generate-panel">
-      <div class="section-heading"><div><p class="eyebrow">05 · GÉNÉRATION</p><h2>Créer le rendu</h2></div><span id="provider-ready" class="status-pill">Vérification…</span></div>
-      <label class="paid-confirm"><input id="paid-confirm" type="checkbox"><span>Je confirme cet appel image payant unique. Aucun retry automatique.</span></label>
-      <button id="generate-button" class="primary" disabled>Ajouter une photo pour générer</button>
-      <p id="message" class="message" aria-live="polite"></p>
+    <section id="dynamic-pool-section" class="dynamic-pool-section hidden"><details class="pool-diagnostic-details"><summary>Catalogue, familles et diversité de la présélection</summary><div id="dynamic-coverage" class="catalogue-coverage" aria-live="polite"></div></details><details><summary>Candidats préparés pour la proposition <span id="pool-count">0</span></summary><p>La présélection locale utilise les informations du catalogue et vos contraintes ; ce classement reste une heuristique à évaluer. Seule la proposition multimodale examine la photo et la cohérence de l’ensemble. Les candidats ne sont pas encore les produits retenus.</p><div id="dynamic-pool" class="dynamic-candidate-grid"></div></details><div id="dynamic-design-intent"></div><div id="dynamic-omissions"></div></section>
+    <section id="catalogue-explorer-section" class="catalogue-explorer-section hidden" aria-labelledby="catalogue-explorer-title"><details id="catalogue-explorer-details"><summary><span id="catalogue-explorer-title">Explorer les références salon + Japandi du catalogue</span><small>Gratuit</small></summary><div class="catalogue-explorer-content">
+      <p class="section-intro">Consultez toutes les références admissibles dans les rôles gérés, au-delà de la présélection. Les fiches sont textuelles : aucune collecte massive de photos et aucun appel IA. Un tag Japandi ne garantit pas l’accord visuel avec votre pièce.</p>
+      <p id="explorer-summary" class="field-note"></p>
+      <form id="catalogue-search-form" class="catalogue-search-form"><label for="catalogue-query">Nom, enseigne ou identifiant<input id="catalogue-query" type="search" maxlength="160" placeholder="Ex. canapé, chêne, SOFTY…"></label><label for="catalogue-role">Rôle<select id="catalogue-role"><option value="">Tous les rôles gérés</option></select></label><button id="catalogue-search-button" class="button button-secondary" type="submit">Rechercher · Local</button></form>
+      <p id="catalogue-explorer-feedback" class="field-note" role="status" aria-live="polite">Ouvrez l’explorateur pour consulter les références.</p>
+      <div id="catalogue-explorer-products" class="catalogue-explorer-products"></div>
+      <nav class="catalogue-pagination" aria-label="Pages du catalogue"><button id="catalogue-page-previous" class="text-button" type="button" disabled>← Précédent</button><span id="catalogue-page-status"></span><button id="catalogue-page-next" class="text-button" type="button" disabled>Suivant →</button></nav>
+    </div></details></section>
+    <section id="catalogue" class="catalogue-section" aria-labelledby="catalogue-title">
+      <div class="section-heading"><div><p id="catalogue-kicker" class="eyebrow">PRODUITS SÉLECTIONNÉS POUR CE PROJET</p><h2 id="catalogue-title">Les produits <em>du salon.</em></h2></div><span id="product-count" class="count-pill">9 références</span></div>
+      <p id="catalogue-intro" class="section-intro">8 objets et la peinture Parchemin. Les images décrivent les produits ; leurs décors ne doivent pas apparaître dans votre salon.</p>
+      <section id="surface-plan-panel" class="surface-plan-panel hidden" aria-label="Finitions du sol et des murs proposées"><div id="surface-plan-details"></div><p class="field-note">Une référence décrit l’aspect de la finition ; elle ne représente ni un lot à acheter ni la surface à poser. Métrage, compatibilité technique et coût de pose restent inconnus.</p></section>
+      <section id="decoration-plan-panel" class="decoration-plan-panel hidden" aria-labelledby="decoration-plan-title">
+        <div class="decoration-plan-heading"><h3 id="decoration-plan-title">Les finitions de votre salon</h3><span id="decoration-plan-summary" class="field-note"></span></div>
+        <p id="decoration-plan-intent" class="decoration-plan-intent"></p>
+        <div id="decoration-plan-categories" class="decoration-plan-categories"></div>
+        <p id="decoration-plan-note" class="field-note">Les choix décrivent la proposition. L’accord esthétique, le placement et la présence des décors restent à examiner dans le rendu.</p>
+      </section>
+      <div id="catalogue-layout" class="catalogue-layout">
+        <div id="historical-reference-panel" class="reference-panel">
+          <div class="reference-panel-top"><span class="section-kicker">RÉFÉRENCES VISUELLES EXACTES</span><button id="reference-enlarge" class="icon-button" type="button" aria-label="Agrandir la référence visuelle">↗</button></div>
+          <div class="reference-preview"><img id="product-reference-image" src="/placeholder-room.svg" alt="Références sélectionnées pour le rendu" loading="lazy"></div>
+          <div class="reference-preview-caption"><strong id="product-reference-title">La planche A–F</strong><p id="product-reference-description">A : ALYA · B : SOFTY · C : KATA<br>D : DAUN · E : MARLON · F : OUREA</p></div>
+          <div class="reference-buttons" aria-label="Choisir une référence visuelle"><button type="button" data-reference="wave">WAVE</button><button type="button" data-reference="nina">NINA</button><button type="button" data-reference="board" class="active">Planche A–F</button><button type="button" data-reference="paint">Parchemin</button></div>
+        </div>
+        <div id="products" class="products-grid" aria-live="polite"><div class="catalogue-loading">Chargement de la sélection locale…</div></div>
+      </div>
+      <details id="historical-uncertainties" class="uncertainties"><summary><span class="uncertainty-icon">!</span> Trois points du catalogue à examiner<span class="details-arrow">＋</span></summary><div class="uncertainty-content"><p><strong>WAVE</strong> — profondeur de 97 cm dans le titre, 43 cm dans les dimensions : mesure non certifiée.</p><p><strong>SOFTY</strong> — « Bois » figure parmi les matières d’un tapis présenté en laine.</p><p><strong>Parchemin</strong> — la couleur brute « Bois » ne décrit pas la teinte de peinture.</p><p class="muted">Ces conflits sont conservés. Le prompt et les cinq images du cas historique restent figés.</p></div></details>
     </section>
-
-    <section id="results-panel" class="panel" hidden>
-      <div class="section-heading"><div><p class="eyebrow">RÉSULTATS</p><h2>Comparer les moteurs</h2></div><button id="compare-toggle" class="secondary" hidden>Comparer côte à côte</button></div>
-      <div id="result-single" class="result-single"></div>
-      <div id="result-compare" class="result-compare" hidden></div>
-      <p class="notice">Les points produits ne sont jamais inventés. Sur Vercel, les références figées restent listées sous le rendu ; le placement automatique des points reste réservé au laboratoire local doté de la détection hors ligne.</p>
-      <div id="result-products" class="product-grid compact"></div>
-    </section>
+    <section id="history" class="history-section" aria-labelledby="history-title"><div class="section-heading"><div><p class="eyebrow">VOS RÉSULTATS LOCAUX</p><h2 id="history-title">Le carnet <em>d’essai.</em></h2></div><button id="refresh-button" class="text-button" type="button">Actualiser <span aria-hidden="true">↻</span></button></div><div class="history-filter"><span id="history-case-label">Essais du salon sélectionné</span><label><input id="history-all" type="checkbox"> Tous les salons</label></div><div id="history-content" class="history-content"><div class="history-empty"><span class="history-number">01</span><div><h3>Chargement des essais…</h3><p>Chaque rendu reste associé à sa photographie source.</p></div></div></div></section>
+    <details class="technical-details"><summary>Paramètres et fonctionnement de l’essai<span>＋</span></summary><div><dl><div><dt>Cas</dt><dd id="case-id">salon-japandi-v1</dd></div><div><dt>Modèle demandé</dt><dd id="model-name">Vérification…</dd></div><div><dt>Requête</dt><dd id="request-settings">1 rendu · aucun retry</dd></div><div><dt>Authentification précédente</dt><dd id="authentication-status">Non vérifiée</dd></div></dl><p>L’import reste gratuit. Le bouton « Générer l’image » prépare les candidats localement, demande une sélection IA seulement si elle manque, la contrôle et lance un seul rendu avec le moteur choisi. Une sélection valide déjà disponible est réutilisée sans nouvel appel de sélection. Passer de Muse à OpenAI ne lance aucun appel. Une erreur ne déclenche jamais une seconde tentative automatique.</p><p>Un rendu obtenu reste à valider dans la revue : architecture, sol, circulation, présence des produits et absence d’objets hors sélection. Une image générée ne constitue pas une acceptation humaine.</p></div></details>
   </main>
-
-  <dialog id="login-dialog" class="login-dialog">
-    <form id="login-form" method="dialog">
-      <p class="eyebrow">ACCÈS PROTÉGÉ</p><h2>Aurimmo Intérieur Lab</h2>
-      <p>Entrez le mot de passe de l’application. Les générations utilisent les crédits du compte Aurimmo.</p>
-      <label>Mot de passe<input id="password" type="password" autocomplete="current-password" required minlength="10"></label>
-      <button class="primary" type="submit">Ouvrir l’application</button>
-      <p id="login-error" class="error" aria-live="polite"></p>
-    </form>
-  </dialog>
-
-  <dialog id="cart-dialog" class="cart-dialog"><div class="dialog-head"><h2>Panier local</h2><button id="close-cart" class="link-button">Fermer</button></div><div id="cart-items"></div><p class="notice">Aucun achat ni paiement n’est connecté.</p></dialog>
-  <script type="module" src="/app.js"></script>
+  <footer class="site-footer"><span>aurimmo <span class="footer-lab">/ Intérieur Lab</span></span><p>Accès protégé · Muse Image + OpenAI Image · Produits catalogue</p><a href="#main">Retour en haut ↑</a></footer>
+  <dialog id="image-dialog" class="image-dialog" aria-labelledby="dialog-title"><div class="dialog-header"><h2 id="dialog-title">Référence visuelle</h2><button id="dialog-close" class="icon-button" type="button" aria-label="Fermer l’aperçu">×</button></div><img id="dialog-image" alt=""><p>Référence exacte, affichée sans recadrage.</p></dialog>
 </body>
 </html>

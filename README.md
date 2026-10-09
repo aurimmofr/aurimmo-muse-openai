@@ -4,6 +4,10 @@ Application Vercel protégée par mot de passe pour comparer un rendu **Muse
 Image** et un rendu **OpenAI Image** à partir de la même photo, du même programme,
 des mêmes surfaces et de la même sélection catalogue figée.
 
+L'interface reprend le laboratoire Aurimmo existant : identité visuelle et CSS,
+prise ou ajout de photo, quatre programmes, choix indépendants du sol et des murs,
+cartes produits, panier local, carnet d'essai et comparaison côte à côte.
+
 ## Sécurité
 
 - les clés API restent dans les variables d'environnement Vercel ;

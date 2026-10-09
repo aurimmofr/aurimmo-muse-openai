@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { __test } from '../api/generate.mjs';
 import { checkPassword } from '../api/_security.mjs';
+import { validPrivatePath } from '../api/delete.mjs';
 
 const catalogue=JSON.parse(await readFile(new URL('../public/catalogue.json',import.meta.url),'utf8'));
 
@@ -54,6 +55,24 @@ test('public source never contains local secrets or paid result data',async()=>{
   for(const relative of files){const text=await readFile(new URL(relative,import.meta.url),'utf8');assert.doesNotMatch(text,/sk-[A-Za-z0-9_-]{20,}|BFL_API_KEY=/);}
   const html=await readFile(new URL('../public/index.html',import.meta.url),'utf8');
   assert.match(html,/OpenAI Image/);assert.match(html,/Muse Image/);assert.doesNotMatch(html,/Flux 3/);
+});
+
+test('the public page preserves the Aurimmo photo workflow and original stylesheet',async()=>{
+  const html=await readFile(new URL('../public/index.html',import.meta.url),'utf8');
+  assert.match(html,/href="\/app\.css"/);
+  assert.match(html,/capture="environment"/);
+  assert.match(html,/Prendre ou ajouter une photo/);
+  assert.match(html,/id="programme-cards"/);
+  assert.match(html,/data-image-provider="openai"/);
+  assert.match(html,/data-image-provider="muse"/);
+});
+
+test('private deletion is restricted to exact upload and result paths',()=>{
+  assert.equal(validPrivatePath('uploads/123-photo.jpg'),true);
+  assert.equal(validPrivatePath('results/run-123.png'),true);
+  assert.equal(validPrivatePath('../uploads/photo.jpg'),false);
+  assert.equal(validPrivatePath('runs/run.json'),false);
+  assert.equal(validPrivatePath('uploads/nested/photo.jpg'),false);
 });
 
 test('application password accepts the configured 10+ character policy',()=>{
