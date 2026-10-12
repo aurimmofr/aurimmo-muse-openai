@@ -18,6 +18,9 @@
       "includeFiles": "public/catalogue.json"
     }
   },
+  "rewrites": [
+    { "source": "/", "destination": "/portal.html" }
+  ],
   "headers": [
     {
       "source": "/(.*)",

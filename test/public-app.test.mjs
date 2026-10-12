@@ -3,7 +3,6 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { __test } from '../api/generate.mjs';
 import {__test as hotspotDispatchTest,dispatchHotspotWorker,preflightHotspotWorker} from '../api/_hotspot-dispatch.mjs';
-import { checkPassword } from '../api/_security.mjs';
 import { referencedPrivatePaths,validPrivatePath } from '../api/delete.mjs';
 
 const catalogue=JSON.parse(await readFile(new URL('../public/catalogue.json',import.meta.url),'utf8'));
@@ -24,23 +23,25 @@ test('public catalogue contains the complete eligible Salon/Japandi library',()=
   }
 });
 
-test('exact frozen selection fingerprint is deterministic and provider independent',()=>{
+test('exact frozen selection fingerprint is deterministic and ignores transport metadata',()=>{
   const products=[catalogue.products.find(x=>x.role==='sofa'),catalogue.products.find(x=>x.role==='rug'),catalogue.products.find(x=>x.role==='floor_lamp')];
   const body={program:'living_conversation',include_tv:false,surfaces:{floor:'preserve',walls:'preserve'}};
   const first=__test.sha(__test.canonicalSelection(body,products));
-  const second=__test.sha(__test.canonicalSelection({...body,provider:'muse'},products));
+  const second=__test.sha(__test.canonicalSelection({...body,project_id:'11111111-1111-4111-8111-111111111111',provider:'muse'},products));
   assert.equal(first,second);
   assert.match(first,/^[a-f0-9]{64}$/);
 });
 
-test('generation validation requires one explicit confirmation and an exact selection',()=>{
+test('Muse generation validation requires client scope, one explicit confirmation and an exact selection',()=>{
   process.env.GENERATION_ENABLED='true';
   const products=['sofa','armchair','coffee_table','rug','floor_lamp','decorative_object'].map(role=>catalogue.products.find(x=>x.role===role&&x.selection_status!=='historical_run_only'));
   const index=new Map(products.map(product=>[product.catalog_id,product]));
-  const base={provider:'openai',program:'living_conversation',include_tv:false,surfaces:{floor:'preserve',walls:'preserve'},room_path:'uploads/photo.jpg',width:1200,height:800,
+  const base={provider:'muse',project_id:'11111111-1111-4111-8111-111111111111',source_asset_id:'22222222-2222-4222-8222-222222222222',program:'living_conversation',include_tv:false,surfaces:{floor:'preserve',walls:'preserve'},room_path:'uploads/photo.jpg',width:1200,height:800,
     product_ids:products.map(x=>x.catalog_id),authorization_id:'11111111-1111-4111-8111-111111111111',confirm_paid_generation:true};
   base.selection_fingerprint=__test.sha(__test.canonicalSelection(base,products));
   assert.deepEqual(__test.validateBody(base,index),products);
+  assert.throws(()=>__test.validateBody({...base,provider:'openai'},index),/Moteur Muse/);
+  assert.throws(()=>__test.validateBody({...base,project_id:'not-a-project'},index),/Projet ou photo client/);
   assert.throws(()=>__test.validateBody({...base,confirm_paid_generation:false},index),/Confirmation payante/);
   assert.throws(()=>__test.validateBody({...base,selection_fingerprint:'0'.repeat(64)},index),/sélection figée/);
   const incomplete={...base,product_ids:base.product_ids.slice(0,-1)};incomplete.selection_fingerprint=__test.sha(__test.canonicalSelection(incomplete,products.slice(0,-1)));
@@ -58,14 +59,24 @@ test('prompt protects source architecture, fixed elements and merchant backgroun
 });
 
 test('public source never contains local secrets or paid result data',async()=>{
-  const files=['../public/index.html','../public/app.js','../api/generate.mjs','../README.md'];
+  const files=['../public/index.html','../public/portal.html','../public/studio.html','../public/app.js','../api/generate.mjs','../README.md'];
   for(const relative of files){const text=await readFile(new URL(relative,import.meta.url),'utf8');assert.doesNotMatch(text,/sk-[A-Za-z0-9_-]{20,}|BFL_API_KEY=/);}
-  const html=await readFile(new URL('../public/index.html',import.meta.url),'utf8');
-  assert.match(html,/OpenAI Image/);assert.match(html,/Muse Image/);assert.doesNotMatch(html,/Flux 3/);
+  const [index,indexRedirect,portal,studio,app]=await Promise.all([
+    readFile(new URL('../public/index.html',import.meta.url),'utf8'),
+    readFile(new URL('../public/index-redirect.js',import.meta.url),'utf8'),
+    readFile(new URL('../public/portal.html',import.meta.url),'utf8'),
+    readFile(new URL('../public/studio.html',import.meta.url),'utf8'),
+    readFile(new URL('../public/app.js',import.meta.url),'utf8'),
+  ]);
+  assert.match(index,/src="\/index-redirect\.js"/);
+  assert.match(indexRedirect,/location\.replace\(destination\)/);
+  assert.match(indexRedirect,/\/portal\.html/);
+  assert.match(studio,/Muse/);
+  assert.doesNotMatch(`${portal}\n${studio}\n${app}`,/\b(?:OpenAI|ChatGPT)\b/i);
 });
 
-test('the public page preserves the Aurimmo photo workflow and original stylesheet',async()=>{
-  const html=await readFile(new URL('../public/index.html',import.meta.url),'utf8');
+test('the authenticated studio preserves the Aurimmo photo workflow and original stylesheet',async()=>{
+  const html=await readFile(new URL('../public/studio.html',import.meta.url),'utf8');
   assert.match(html,/href="\/app\.css"/);
   assert.match(html,/id="camera-file"[^>]*capture="environment"/);
   assert.match(html,/id="room-file"[^>]*type="file"[^>]*accept="image\/jpeg,image\/png,image\/webp"/);
@@ -73,13 +84,15 @@ test('the public page preserves the Aurimmo photo workflow and original styleshe
   assert.match(html,/id="camera-button"[^>]*>[\s\S]*?Prendre une photo/);
   assert.match(html,/id="upload-button"[^>]*>[\s\S]*?Télécharger une image/);
   assert.match(html,/id="programme-cards"/);
-  assert.match(html,/data-image-provider="openai"/);
-  assert.match(html,/data-image-provider="muse"/);
+  assert.doesNotMatch(html,/data-image-provider=/);
+  assert.match(html,/Rendu Muse/);
   const app=await readFile(new URL('../public/app.js',import.meta.url),'utf8');
   assert.ok(app.includes("$('#camera-button').addEventListener('click',()=>$('#camera-file').click());"));
   assert.ok(app.includes("$('#upload-button').addEventListener('click',()=>$('#room-file').click());"));
   assert.match(app,/camera-button[^\n]*disabled=false;[^\n]*upload-button[^\n]*disabled=false/);
   assert.match(app,/renderCatalogueExplorer/);assert.match(app,/\/api\/hotspots/);assert.match(app,/Ouvrir avec les points/);assert.match(app,/prepareRandomSelection/);assert.match(app,/Modifier ce produit/);assert.match(app,/product-hotspot-refresh/);
+  assert.match(app,/project_id:state\.projectId/);assert.match(app,/source_asset_id:state\.photoAssetId/);assert.match(app,/provider:'muse'/);
+  assert.match(app,/\/portal\.html\?view=\$\{encodeURIComponent\(view\)\}&return_to=/);assert.match(app,/returnToPortal\('plans'\)/);assert.match(app,/can_generate/);
 });
 
 test('private deletion is restricted to exact upload and result paths',()=>{
@@ -92,12 +105,14 @@ test('private deletion is restricted to exact upload and result paths',()=>{
   assert.equal(protectedPaths.has('uploads/photo.jpg'),true);assert.equal(protectedPaths.has('results/run-123.png'),true);
 });
 
-test('application password accepts the configured 10+ character policy',()=>{
-  const previous=process.env.APP_PASSWORD;
-  process.env.APP_PASSWORD='valid-pass1';
-  assert.equal(checkPassword('valid-pass1'),true);
-  assert.equal(checkPassword('invalid-pass'),false);
-  if(previous===undefined)delete process.env.APP_PASSWORD;else process.env.APP_PASSWORD=previous;
+test('client APIs use Supabase identity and legacy shared-password configuration is absent',async()=>{
+  const protectedSources=await Promise.all(['generate','upload','history','status'].map(name=>readFile(new URL(`../api/${name}.mjs`,import.meta.url),'utf8')));
+  for(const source of protectedSources){assert.match(source,/requireIdentity/);assert.doesNotMatch(source,/requireAuth|APP_PASSWORD/);}
+  const security=await readFile(new URL('../api/_security.mjs',import.meta.url),'utf8');
+  const envExample=await readFile(new URL('../.env.example',import.meta.url),'utf8');
+  assert.doesNotMatch(security,/checkPassword|SESSION_SECRET/);
+  assert.doesNotMatch(envExample,/APP_PASSWORD|SESSION_SECRET|OPENAI_API_KEY|OPENAI_IMAGE_MODEL/);
+  assert.match(envExample,/SUPABASE_URL=/);assert.match(envExample,/STRIPE_WEBHOOK_SECRET=/);assert.match(envExample,/MODEL_API_KEY=/);
 });
 
 test('every saved render can dispatch the exact hotspot workflow without exposing its token',async()=>{

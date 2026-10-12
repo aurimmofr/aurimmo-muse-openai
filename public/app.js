@@ -26,20 +26,56 @@ const ROLE_LABELS = {
   plant:'Végétal décoratif',planter:'Cache-pot',basket:'Panier',cushion:'Coussin',throw:'Plaid',
 };
 
+function cartStorageKey() {
+  const userId=state.client?.user?.id||state.client?.user_id||null;
+  return userId&&state.projectId?`aurimmo-public-cart:${userId}:${state.projectId}`:null;
+}
+
 function savedCart() {
+  const key=cartStorageKey();if(!key)return [];
   try {
-    const value=JSON.parse(localStorage.getItem('aurimmo-public-cart')||'[]');
+    const value=JSON.parse(localStorage.getItem(key)||'[]');
     return Array.isArray(value)?value.filter(item=>typeof item==='string').slice(0,100):[];
   } catch { return []; }
 }
 
+function persistCart() {
+  const key=cartStorageKey();if(!key)return;
+  localStorage.setItem(key,JSON.stringify(state.cart));
+}
+
 const state = {
-  catalogue:[], catalogueRoles:[], catalogueActiveTotal:0, catalogueHistoricalTotal:0, providers:{}, generationEnabled:false, hotspotWorkerReady:false, provider:'openai', programme:null, includeTV:false,
+  catalogue:[], catalogueRoles:[], catalogueActiveTotal:0, catalogueHistoricalTotal:0, providers:{}, generationEnabled:false, hotspotWorkerReady:false, provider:'muse', programme:null, includeTV:false,
   surfaces:{floor:'preserve',walls:'preserve'}, forcedByRole:{}, selection:[], fingerprint:null, selectionOrigin:null, compositionVersion:0,
-  photoPath:null, photoURL:null, photoName:null, width:null, height:null, photoDeletable:false,
-  results:{}, history:[], view:'original', compare:false, busy:false, initialized:false, cart:savedCart(),
+  photoPath:null, photoAssetId:null, photoURL:null, photoName:null, width:null, height:null, photoDeletable:false,
+  results:{}, history:[], view:'original', compare:false, busy:false, initialized:false, cart:[], client:null, projectId:null,
   explorer:{query:'',role:'',page:0,limit:18},hotspots:new Map(),hotspotVisible:true,hotspotTimer:null,hotspotPollingRun:null,historyOpenToken:0,
 };
+
+const GENERATION_INTENT_KEY='aurimmo-generation-intent-v1';
+
+function currentGenerationIntent() {
+  return JSON.stringify({user_id:state.client?.user?.id||state.client?.user_id||null,project_id:state.projectId,source_asset_id:state.photoAssetId,
+    selection_fingerprint:state.fingerprint,provider:'muse'});
+}
+
+function generationAuthorization() {
+  const intent=currentGenerationIntent();
+  try {
+    const pending=JSON.parse(sessionStorage.getItem(GENERATION_INTENT_KEY)||'null');
+    if(pending?.intent===intent&&/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(pending.authorization_id))return pending.authorization_id;
+  } catch {}
+  const authorizationId=crypto.randomUUID();
+  try {sessionStorage.setItem(GENERATION_INTENT_KEY,JSON.stringify({intent,authorization_id:authorizationId,created_at:Date.now()}));}catch{}
+  return authorizationId;
+}
+
+function clearGenerationAuthorization(authorizationId) {
+  try {
+    const pending=JSON.parse(sessionStorage.getItem(GENERATION_INTENT_KEY)||'null');
+    if(!authorizationId||pending?.authorization_id===authorizationId)sessionStorage.removeItem(GENERATION_INTENT_KEY);
+  } catch {try{sessionStorage.removeItem(GENERATION_INTENT_KEY);}catch{}}
+}
 
 async function api(path,options={}) {
   const response=await fetch(path,{credentials:'same-origin',cache:'no-store',...options});
@@ -56,7 +92,7 @@ function node(tag,className,text) {
   return element;
 }
 
-function providerLabel(provider=state.provider) { return provider==='muse'?'Muse Image':'OpenAI Image'; }
+function providerLabel() { return 'Muse Image'; }
 function programmeLabel(programme=state.programme) { return PROGRAMMES.find(item=>item.id===programme)?.title||'Aménagement non choisi'; }
 
 function money(product) {
@@ -66,8 +102,7 @@ function money(product) {
 
 function costLabel(result) {
   if(!result)return '';
-  if(result.cost?.status==='published_flat_price'&&Number.isFinite(result.cost.usd))return `${result.cost.usd.toFixed(2)} $ annoncé`;
-  return result.cost?.usage?'Usage reçu · coût à rapprocher':'Usage absent · coût inconnu';
+  return result.request_started===false?'Crédit non utilisé':'1 crédit utilisé';
 }
 
 function setFeedback(title,text,{error=false,busy=false}={}) {
@@ -90,44 +125,61 @@ function hideUnsupportedControls() {
   composition.querySelector('span').textContent='Proposer une autre composition';
   composition.querySelector('small').textContent='Local · gratuit';
   composition.nextElementSibling.textContent='Une autre composition tire de nouvelles références actives au hasard et conserve tous vos réglages.';
-  $('#history-case-label').textContent='Rendus de cette session protégée';
-  $('#history .eyebrow').textContent='HISTORIQUE PARTAGÉ';
+  $('#history-case-label').textContent='Rendus de ce projet';
+  $('#history .eyebrow').textContent='MES CRÉATIONS';
   $('#history-all').closest('label').classList.add('hidden');
   $('#case-description').textContent='La photo reste privée. L’import ne lance aucun moteur d’image.';
   const technicalParagraphs=$$('.technical-details p');
-  if(technicalParagraphs[0])technicalParagraphs[0].textContent='L’import et les réglages restent gratuits. Une nouvelle composition utilise un tirage aléatoire de références actives, modifiable avant un nouveau rendu. Chaque clic de génération autorise une seule image, sans relance automatique ; la comparaison Muse/OpenAI réutilise exceptionnellement la même composition figée.';
+  if(technicalParagraphs[0])technicalParagraphs[0].textContent='L’import et les réglages restent gratuits. Une nouvelle composition utilise un tirage aléatoire de références actives, modifiable avant le rendu. Votre forfait est vérifié seulement lorsque vous demandez la génération ; chaque clic autorise une seule image, sans relance automatique.';
 }
 
-function createAuthOverlay(message='') {
-  let overlay=$('#public-auth-overlay');
-  if(overlay){$('#public-auth-error').textContent=message;return overlay;}
-  overlay=node('div','public-auth-overlay');overlay.id='public-auth-overlay';
-  const card=node('form','public-auth-card');card.id='public-auth-form';
-  const eyebrow=node('p','eyebrow','ACCÈS PROTÉGÉ');
-  const title=node('h2','', 'Aurimmo Intérieur Lab');
-  const copy=node('p','', 'Saisissez le mot de passe pour retrouver l’outil complet et comparer Muse à OpenAI.');
-  const label=node('label','', 'Mot de passe');
-  const input=node('input');input.id='public-password';input.type='password';input.minLength=10;input.required=true;input.autocomplete='current-password';
-  const error=node('p','public-auth-error',message);error.id='public-auth-error';error.setAttribute('role','alert');
-  const button=node('button','button button-primary','Ouvrir le laboratoire');button.type='submit';
-  label.append(input);card.append(eyebrow,title,copy,label,error,button);overlay.append(card);document.body.append(overlay);
-  card.addEventListener('submit',async event=>{
-    event.preventDefault();error.textContent='';button.disabled=true;button.textContent='Vérification…';
-    try {
-      await api('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:input.value})});
-      overlay.remove();await initialize();
-    } catch(authError) { error.textContent=authError.message;input.select(); }
-    finally { button.disabled=false;button.textContent='Ouvrir le laboratoire'; }
-  });
-  queueMicrotask(()=>input.focus());return overlay;
+function returnToPortal(view='overview') {
+  const returnTo=`${location.pathname}${location.search}`;
+  location.assign(`/portal.html?view=${encodeURIComponent(view)}&return_to=${encodeURIComponent(returnTo)}`);
+}
+
+function saveStudioDraft() {
+  if(!state.projectId)return;
+  const draft={saved_at:Date.now(),project_id:state.projectId,programme:state.programme,include_tv:state.includeTV,surfaces:state.surfaces,
+    product_ids:state.selection.map(product=>product.catalog_id),selection_fingerprint:state.fingerprint,selection_origin:state.selectionOrigin,
+    photo_path:state.photoPath,photo_asset_id:state.photoAssetId,photo_url:state.photoURL,photo_name:state.photoName,width:state.width,height:state.height};
+  try {sessionStorage.setItem('aurimmo-studio-draft',JSON.stringify(draft));}catch{}
+}
+
+function restoreStudioDraft() {
+  let draft;try{draft=JSON.parse(sessionStorage.getItem('aurimmo-studio-draft')||'null');}catch{return false;}
+  if(!draft||draft.project_id!==state.projectId||Date.now()-Number(draft.saved_at)>24*60*60*1000)return false;
+  const selection=Array.isArray(draft.product_ids)?draft.product_ids.map(id=>state.catalogue.find(product=>product.catalog_id===id)).filter(Boolean):[];
+  if(selection.length!==draft.product_ids?.length)return false;
+  state.programme=draft.programme||null;state.includeTV=Boolean(draft.include_tv);state.surfaces=draft.surfaces||{floor:'preserve',walls:'preserve'};
+  state.selection=selection;state.fingerprint=draft.selection_fingerprint||null;state.selectionOrigin=draft.selection_origin||'edited';
+  state.forcedByRole=Object.fromEntries(selection.map(product=>[product.role,product.catalog_id]));
+  state.photoPath=draft.photo_path||null;state.photoAssetId=draft.photo_asset_id||null;state.photoURL=draft.photo_url||null;state.photoName=draft.photo_name||null;state.width=draft.width||null;state.height=draft.height||null;state.photoDeletable=Boolean(state.photoPath);
+  if(state.photoName)$('#case-select').replaceChildren(new Option(state.photoName,state.photoName,true,true));
+  if(state.photoURL)$('#original-thumbnail-image').src=state.photoURL;
+  for(const input of $$('[data-surface]'))input.checked=input.value===state.surfaces[input.dataset.surface];
+  return true;
+}
+
+async function ensureGenerationEntitlement() {
+  const account=await api('/api/me');state.client=account;
+  if(account.can_generate===true)return true;
+  saveStudioDraft();
+  const subscriptionStatus=account.subscription?.status;
+  const existingSubscription=['active','past_due','unpaid','paused','incomplete','trialing'].includes(subscriptionStatus);
+  setFeedback(existingSubscription?'Crédits indisponibles':'Choisissez votre formule',existingSubscription
+    ?'Votre projet et vos réglages sont conservés. Consultez votre abonnement et le renouvellement de vos crédits avant de relancer.'
+    :'Votre projet et vos réglages sont conservés. Sélectionnez Essentiel ou Pro avant de lancer le rendu.');
+  returnToPortal(existingSubscription?'billing':'plans');return false;
 }
 
 function addSessionActions() {
   if($('#public-logout'))return;
   const actions=node('div','public-session-actions');
-  const button=node('button','text-button','Fermer la session');button.id='public-logout';button.type='button';
-  button.addEventListener('click',async()=>{try{await api('/api/auth',{method:'DELETE'});}finally{location.reload();}});
-  actions.append(button);$('.page-shell').prepend(actions);
+  const dashboard=node('a','text-button','← Mon espace');dashboard.href='/portal.html';
+  const button=node('button','text-button','Se déconnecter');button.id='public-logout';button.type='button';
+  button.addEventListener('click',async()=>{try{await api('/api/client-auth',{method:'DELETE'});}finally{returnToPortal('login');}});
+  actions.append(dashboard,button);$('.page-shell').prepend(actions);
 }
 
 function renderProgrammes() {
@@ -208,7 +260,7 @@ function productCard(product) {
   const cart=node('button','button button-secondary public-product-cart-button',inCart?'Retirer du panier local':'Ajouter au panier local');cart.type='button';
   cart.addEventListener('click',()=>{
     state.cart=inCart?state.cart.filter(id=>id!==product.catalog_id):[...new Set([...state.cart,product.catalog_id])];
-    localStorage.setItem('aurimmo-public-cart',JSON.stringify(state.cart));renderProducts();
+    persistCart();renderProducts();
   });
   const edit=node('button','text-button public-product-edit-button','Modifier ce produit');edit.type='button';edit.addEventListener('click',()=>editProduct(product));
   article.append(image,top,name,description,id,bottom,edit,cart);return article;
@@ -220,7 +272,7 @@ function renderProducts() {
   else for(const product of state.selection)container.append(productCard(product));
   $('#product-count').textContent=`${state.selection.length} référence${state.selection.length>1?'s':''}`;
   const origin=state.selectionOrigin==='history'?'Composition d’un rendu existant':state.selectionOrigin==='edited'?'Composition personnalisée':`Composition aléatoire n°${Math.max(1,state.compositionVersion)}`;
-  $('#catalogue-intro').textContent=state.selection.length?`${origin} · ${state.selection.length} références figées pour ${programmeLabel().toLowerCase()}. Chaque produit peut être remplacé ; une comparaison Muse/OpenAI conserve exactement cette version.`:'Les produits apparaîtront après le choix de l’aménagement.';
+  $('#catalogue-intro').textContent=state.selection.length?`${origin} · ${state.selection.length} références figées pour ${programmeLabel().toLowerCase()}. Chaque produit peut être remplacé avant la génération.`:'Les produits apparaîtront après le choix de l’aménagement.';
   const finishes=state.selection.filter(product=>['floor_finish','wall_finish'].includes(product.role));
   const panel=$('#surface-plan-panel');panel.classList.toggle('hidden',!finishes.length);
   $('#surface-plan-details').replaceChildren(...finishes.map(product=>node('p','',`${ROLE_LABELS[product.role]} : ${product.product_name} · ${product.retailer}`)));
@@ -234,7 +286,7 @@ function renderCart() {
     const row=node('div','hotspot-cart-item'),image=node('img');image.src=product.image_url;image.alt='';
     const body=node('div');body.append(node('p','',product.product_name),node('p','',`${product.retailer} · ${money(product)}`));
     const remove=node('button','hotspot-cart-remove','Retirer');remove.type='button';remove.addEventListener('click',()=>{
-      state.cart=state.cart.filter(id=>id!==product.catalog_id);localStorage.setItem('aurimmo-public-cart',JSON.stringify(state.cart));renderProducts();
+      state.cart=state.cart.filter(id=>id!==product.catalog_id);persistCart();renderProducts();
     });
     row.append(image,body,remove);items.append(row);
   }
@@ -294,10 +346,6 @@ function renderSurfaceMessage() {
 }
 
 function renderEngine() {
-  for(const button of $$('.engine-choice')) {
-    const active=button.dataset.imageProvider===state.provider;button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));
-  }
-  $('#engine-switch-note').textContent=`${providerLabel()} sélectionné. Changer de moteur est gratuit et conserve exactement la même sélection.`;
   $('#image-key-label').textContent=`${providerLabel()} actif`;$('#provider-progress-label').textContent=`Rendu ${providerLabel()}`;
   $('#render-cost-label').textContent=`Rendu ${providerLabel()}`;$('#model-name').textContent=providerLabel();
 }
@@ -337,8 +385,8 @@ function updateGenerate() {
   else if(!state.programme)stage.textContent='Choisissez un aménagement avant de générer.';
   else if(!providerConfigured)stage.textContent=`${providerLabel()} n’est pas configuré sur le serveur.`;
   else if(!state.hotspotWorkerReady)stage.textContent='La génération est bloquée tant que le worker de points produits n’est pas prêt.';
-  else if(previous)stage.textContent=`Le rendu ${providerLabel()} est disponible. Changez de moteur pour comparer avec les mêmes produits.`;
-  else stage.textContent=`Prêt. Ce clic autorise un seul appel image payant à ${providerLabel()}, sans relance automatique.`;
+  else if(previous)stage.textContent=`Le rendu ${providerLabel()} est disponible. Vous pouvez préparer une autre composition.`;
+  else stage.textContent='Prêt. Votre forfait sera vérifié avant d’autoriser un seul rendu Muse, sans relance automatique.';
 }
 
 function updateInterface() { renderEngine();renderSurfaceMessage();updateReadiness();updateGenerate();renderCart(); }
@@ -356,25 +404,14 @@ function setStageImage(url,{href=url,badge,caption,dimensions,alt}) {
 
 function setView(view) {
   if(view==='result'&&!currentResult())view='original';state.view=view;state.compare=false;
-  $('#provider-comparison').classList.add('hidden');$('#image-stage').classList.remove('comparing');$('#stage-link').classList.remove('hidden');
+  $('#image-stage').classList.remove('comparing');$('#stage-link').classList.remove('hidden');
   if(view==='original')setStageImage(state.photoURL||'/placeholder-room.svg',{badge:'PHOTO ORIGINALE',caption:state.photoPath?'Architecture, ouvertures, sol et installations fixes à conserver.':'Prenez ou ajoutez la photographie du salon.',dimensions:state.width?`${state.width.toLocaleString('fr-FR')} × ${state.height.toLocaleString('fr-FR')}`:'',alt:state.photoPath?'Photographie originale du salon':'Ajoutez ou prenez une photographie de votre salon'});
   else {
     const result=currentResult();setStageImage(result.image_url,{badge:`RENDU ${providerLabel(result.provider).toUpperCase()}`,caption:'Rendu à examiner : architecture, installations fixes et produits restent à valider humainement.',dimensions:`${Math.round(result.elapsed_ms/1000)} s`,alt:`Rendu Japandi généré par ${providerLabel(result.provider)}`});
   }
   for(const tab of $$('.view-tab')){const active=tab.dataset.view===view;tab.classList.toggle('active',active);tab.setAttribute('aria-selected',String(active));}
   for(const item of $$('.comparison-item'))item.classList.toggle('active',item.dataset.view===view);
-  $('#stage-empty').classList.add('hidden');$('#compare-provider-results').setAttribute('aria-pressed','false');updateHotspotNotice();
-}
-
-function showComparison() {
-  const openai=state.results.openai,muse=state.results.muse;
-  if(!resultMatchesDraft(openai)||!resultMatchesDraft(muse))return;
-  state.view='result';state.compare=true;$('#stage-link').classList.add('hidden');$('#provider-comparison').classList.remove('hidden');$('#image-stage').classList.add('comparing');
-  $('#provider-first-image').src=openai.image_url;$('#provider-first-link').href=openai.image_url;$('#provider-first-cost').textContent=costLabel(openai);
-  $('#provider-second-image').src=muse.image_url;$('#provider-second-link').href=muse.image_url;$('#provider-second-cost').textContent=costLabel(muse);
-  $('#stage-badge').textContent='COMPARAISON';$('#stage-caption').textContent='Même photo, mêmes réglages et mêmes produits figés.';$('#stage-dimensions').textContent='Muse / OpenAI';
-  for(const tab of $$('.view-tab')){const active=tab.dataset.view==='result';tab.classList.toggle('active',active);tab.setAttribute('aria-selected',String(active));}
-  $('#compare-provider-results').setAttribute('aria-pressed','true');updateHotspotNotice();
+  $('#stage-empty').classList.add('hidden');updateHotspotNotice();
 }
 
 function closeHotspotCard() {
@@ -398,7 +435,7 @@ function openHotspotCard(point,payload,button) {
   const body=node('div','hotspot-card-body');body.append(node('span','hotspot-card-retailer',product.retailer),node('p','hotspot-card-name',product.product_name),node('strong','hotspot-card-price',money(product)));
   const link=node('a','product-link','Voir la fiche ↗');link.href=product.product_url;link.target='_blank';link.rel='noopener noreferrer';body.append(link);
   const inCart=state.cart.includes(product.catalog_id),add=node('button','hotspot-card-add',inCart?'Retirer du panier local':'Ajouter au panier local');add.type='button';
-  add.addEventListener('click',()=>{state.cart=inCart?state.cart.filter(id=>id!==product.catalog_id):[...new Set([...state.cart,product.catalog_id])];localStorage.setItem('aurimmo-public-cart',JSON.stringify(state.cart));renderCart();closeHotspotCard();});
+  add.addEventListener('click',()=>{state.cart=inCart?state.cart.filter(id=>id!==product.catalog_id):[...new Set([...state.cart,product.catalog_id])];persistCart();renderCart();closeHotspotCard();});
   const edit=node('button','text-button public-product-edit-button','Modifier ce produit');edit.type='button';edit.addEventListener('click',()=>{closeHotspotCard();editProduct(product);});
   body.append(edit,add);card.append(title,close,photo,body);card.classList.remove('hidden');
   const rect=containedImageRect(),stage=$('#image-stage').getBoundingClientRect(),dimensions=card.getBoundingClientRect();if(!rect)return;
@@ -448,7 +485,7 @@ function updateHotspotNotice() {
   toggle.textContent=state.hotspotVisible?'Masquer les points':'Afficher les points';toggle.setAttribute('aria-pressed',String(state.hotspotVisible));toggle.disabled=!payload?.hotspots?.length;
   status.classList.toggle('error',payload?.localization?.status==='failed');
   if(!visible)status.textContent='';
-  else if(!payload||['queued','pending'].includes(payload.localization?.status))status.textContent='Rendu placé dans la file de repérage · vision hors ligne hébergée, sans nouvel appel Muse/OpenAI.';
+  else if(!payload||['queued','pending'].includes(payload.localization?.status))status.textContent='Rendu placé dans la file de repérage · vision hors ligne hébergée, sans nouvel appel de génération.';
   else if(payload.localization?.status==='processing')status.textContent=`Repérage automatique en cours sur l’image finale${payload.localization.attempt?` · tentative locale ${payload.localization.attempt}`:''}.`;
   else if(payload.localization?.status==='failed'&&payload.localization?.retryable!==false)status.textContent='Le worker a rencontré un incident ; une nouvelle tentative de repérage local est programmée. Le rendu payé reste intact.';
   else if(payload.localization?.status==='failed')status.textContent='Le repérage des produits a échoué ; le rendu reste intact et aucun point approximatif n’a été ajouté.';
@@ -462,16 +499,14 @@ function renderResults() {
   $('#tab-result').disabled=!result;$('#tab-result').tabIndex=result?0:-1;$('#result-dot').classList.toggle('hidden',!result);
   if(result){thumbnail.src=result.image_url;thumbnail.classList.remove('hidden');empty.classList.add('hidden');}
   else {thumbnail.removeAttribute('src');thumbnail.classList.add('hidden');empty.classList.remove('hidden');}
-  const pair=['openai','muse'].every(provider=>resultMatchesDraft(state.results[provider]));
-  const compare=$('#compare-provider-results');compare.classList.toggle('hidden',!pair);compare.setAttribute('aria-pressed',String(state.compare));
-  if(state.view==='result')state.compare&&pair?showComparison():setView('result');else setView('original');
+  if(state.view==='result')setView('result');else setView('original');
 }
 
 function renderHistory() {
   const container=$('#history-content');container.replaceChildren();
   if(!state.history.length){
     const empty=node('div','history-empty');empty.append(node('span','history-number','01'));
-    const text=node('div');text.append(node('h3','', 'Aucun rendu dans cette session'),node('p','', 'Chaque résultat apparaîtra ici avec son moteur et sa sélection figée.'));
+    const text=node('div');text.append(node('h3','', 'Aucun rendu pour ce projet'),node('p','', 'Chaque création apparaîtra ici avec sa sélection catalogue figée.'));
     empty.append(text);container.append(empty);return;
   }
   const newestFirst=[...state.history].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
@@ -492,12 +527,11 @@ async function openHistoryResult(result) {
   const token=++state.historyOpenToken;let dimensions={width:null,height:null};
   if(result.source_image_url)try{dimensions=await imageDimensions(result.source_image_url);}catch{}
   if(token!==state.historyOpenToken)return;
-  clearHotspotPolling();state.provider=result.provider;state.programme=result.program;state.includeTV=Boolean(result.include_tv);state.surfaces=result.surfaces||{floor:'preserve',walls:'preserve'};
+  clearHotspotPolling();state.provider='muse';state.programme=result.program;state.includeTV=Boolean(result.include_tv);state.surfaces=result.surfaces||{floor:'preserve',walls:'preserve'};
   state.selection=result.products;state.fingerprint=result.selection_fingerprint;state.forcedByRole=Object.fromEntries(result.products.map(product=>[product.role,product.catalog_id]));
-  state.selectionOrigin='history';state.compositionVersion+=1;state.photoPath=result.source_path||null;state.photoURL=result.source_image_url||null;state.photoName=`Photo du rendu ${result.run_id}`;state.photoDeletable=false;
+  state.selectionOrigin='history';state.compositionVersion+=1;state.photoPath=result.source_path||null;state.photoAssetId=result.source_asset_id||null;state.photoURL=result.source_image_url||null;state.photoName=`Photo du rendu ${result.run_id}`;state.photoDeletable=false;
   Object.assign(state,dimensions);
-  state.results={};for(const item of state.history.filter(item=>item.selection_fingerprint===result.selection_fingerprint&&item.source_path===result.source_path))state.results[item.provider]=item;
-  state.results[result.provider]=result;state.view='result';state.compare=false;
+  state.results={muse:result};state.view='result';state.compare=false;
   for(const input of $$('[data-surface]'))input.checked=input.value===state.surfaces[input.dataset.surface];
   $('#case-select').replaceChildren(new Option(state.photoName,state.photoName,true,true));$('#delete-photo-button').disabled=true;
   if(state.photoURL)$('#original-thumbnail-image').src=state.photoURL;
@@ -505,7 +539,8 @@ async function openHistoryResult(result) {
 }
 
 async function refreshHistory() {
-  const payload=await api('/api/history');state.history=payload.runs||[];renderHistory();
+  const query=state.projectId?`?project_id=${encodeURIComponent(state.projectId)}`:'';
+  const payload=await api(`/api/history${query}`);state.history=payload.runs||[];renderHistory();
   const result=currentResult(),fresh=result&&state.history.find(item=>item.run_id===result.run_id);
   if(fresh){state.results[fresh.provider]=fresh;renderResults();}
 }
@@ -527,12 +562,16 @@ async function uploadPhoto(file) {
   if(!/^image\/(jpeg|png|webp)$/.test(file.type))throw new Error('Choisissez une photo JPEG, PNG ou WebP.');
   $('#case-feedback').classList.remove('hidden');$('#case-feedback').textContent='Optimisation locale de la photo…';
   const optimized=await optimizePhoto(file);state.historyOpenToken+=1;$('#case-feedback').textContent='Envoi vers le stockage privé…';
-  const uploaded=await api('/api/upload',{method:'POST',headers:{'Content-Type':optimized.blob.type},body:optimized.blob});
+  // Vercel exposes application/octet-stream uploads as an authoritative Buffer.
+  // Keep the verified image MIME in a dedicated same-origin header so the API
+  // can compare it with the file signature before persisting anything.
+  const uploaded=await api('/api/upload',{method:'POST',headers:{'Content-Type':'application/octet-stream','X-Aurimmo-Source-Content-Type':optimized.blob.type,'X-Aurimmo-Project-Id':state.projectId},body:optimized.blob});
+  const verifiedWidth=Number(uploaded.width)||optimized.width,verifiedHeight=Number(uploaded.height)||optimized.height;
   if(state.photoURL?.startsWith('blob:'))URL.revokeObjectURL(state.photoURL);
-  state.photoURL=URL.createObjectURL(optimized.blob);state.photoPath=uploaded.pathname;state.photoName=file.name;state.width=optimized.width;state.height=optimized.height;state.photoDeletable=true;
+  state.photoURL=uploaded.image_url||URL.createObjectURL(optimized.blob);state.photoPath=uploaded.pathname;state.photoAssetId=uploaded.asset_id||null;state.photoName=file.name;state.width=verifiedWidth;state.height=verifiedHeight;state.photoDeletable=true;
   state.results={};state.compare=false;state.view='original';
   const select=$('#case-select');select.replaceChildren(new Option(file.name,file.name,true,true));
-  $('#delete-photo-button').disabled=false;$('#case-feedback').textContent=`Photo privée prête · ${optimized.width} × ${optimized.height} · ${(optimized.blob.size/1024/1024).toFixed(2)} Mo. Aucun appel IA effectué.`;
+  $('#delete-photo-button').disabled=false;$('#case-feedback').textContent=`Photo privée prête · ${verifiedWidth} × ${verifiedHeight} · ${(optimized.blob.size/1024/1024).toFixed(2)} Mo. Aucun appel IA effectué.`;
   $('#original-thumbnail-image').src=state.photoURL;if(state.programme)await prepareRandomSelection();setView('original');renderResults();updateInterface();
 }
 
@@ -542,7 +581,7 @@ async function deletePhoto() {
   try {
     await api('/api/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({paths:[state.photoPath]})});
     if(state.photoURL?.startsWith('blob:'))URL.revokeObjectURL(state.photoURL);
-    Object.assign(state,{photoPath:null,photoURL:null,photoName:null,width:null,height:null,photoDeletable:false,results:{},compare:false,view:'original'});
+    Object.assign(state,{photoPath:null,photoAssetId:null,photoURL:null,photoName:null,width:null,height:null,photoDeletable:false,results:{},compare:false,view:'original'});
     $('#camera-file').value='';$('#room-file').value='';$('#case-select').replaceChildren(new Option('Aucune photo ajoutée','',true,true));
     $('#original-thumbnail-image').src='/placeholder-room.svg';$('#case-feedback').textContent='Photo supprimée du stockage privé.';
     renderResults();updateInterface();
@@ -556,29 +595,34 @@ function setProgress(active=false,failed=false) {
 
 async function generate({fresh=false}={}) {
   if(state.busy)return;state.busy=true;
+  let authorizationId=null;
   try {
     if(fresh)await prepareRandomSelection();
     const existing=resultMatchesDraft(state.results[state.provider]);
     if(!state.photoPath||!state.fingerprint||existing)return;
+    if(!await ensureGenerationEntitlement())return;
+    authorizationId=generationAuthorization();
     setProgress(true);updateInterface();setFeedback('Génération en cours',`${providerLabel()} reçoit la photo et les ${state.selection.length} références exactes. Un seul appel, sans retry.`,{busy:true});
     const result=await api('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-      provider:state.provider,program:state.programme,include_tv:state.includeTV,surfaces:state.surfaces,room_path:state.photoPath,width:state.width,height:state.height,
-      product_ids:state.selection.map(product=>product.catalog_id),selection_fingerprint:state.fingerprint,authorization_id:crypto.randomUUID(),confirm_paid_generation:true,
+      project_id:state.projectId,source_asset_id:state.photoAssetId,provider:'muse',program:state.programme,include_tv:state.includeTV,surfaces:state.surfaces,room_path:state.photoPath,width:state.width,height:state.height,
+      product_ids:state.selection.map(product=>product.catalog_id),selection_fingerprint:state.fingerprint,authorization_id:authorizationId,confirm_paid_generation:true,
     })});
+    clearGenerationAuthorization(authorizationId);
     const complete={...result,program:state.programme,include_tv:state.includeTV,surfaces:{...state.surfaces},source_path:state.photoPath,source_image_url:state.photoURL,created_at:new Date().toISOString()};
     state.results[state.provider]=complete;state.history.push(complete);state.view='result';state.compare=false;state.photoDeletable=false;$('#delete-photo-button').disabled=true;
     $('#render-cost').textContent=costLabel(complete);renderHistory();renderResults();setView('result');ensureHotspots(complete);
     setFeedback('Rendu reçu',`${providerLabel()} a livré une image. Le repérage des ronds bleus démarre sur les pixels finaux ; vérifiez aussi le poêle, l’architecture, les ouvertures, les fixes et chaque produit.`);
     $('#workspace').scrollIntoView({behavior:'smooth',block:'start'});
-  } catch(error) { setProgress(false,true);setFeedback('Génération arrêtée',error.message,{error:true}); }
+  } catch(error) {
+    setProgress(false,true);
+    if(error.payload?.authorization_reusable===false)clearGenerationAuthorization(authorizationId);
+    if(error.status===402){saveStudioDraft();returnToPortal('plans');return;}
+    setFeedback('Génération arrêtée',error.message,{error:true});
+  }
   finally {state.busy=false;setProgress(false);updateInterface();}
 }
 
 function bindEvents() {
-  for(const button of $$('.engine-choice'))button.addEventListener('click',()=>{
-    state.provider=button.dataset.imageProvider;state.compare=false;renderEngine();renderResults();updateInterface();
-    setFeedback('Moteur changé',`${providerLabel()} est sélectionné. Aucun appel n’a été effectué et les produits restent identiques.`);
-  });
   $('#camera-button').addEventListener('click',()=>$('#camera-file').click());
   $('#upload-button').addEventListener('click',()=>$('#room-file').click());
   for(const input of [$('#camera-file'),$('#room-file')])input.addEventListener('change',async event=>{
@@ -598,7 +642,6 @@ function bindEvents() {
   $('#dynamic-generate-button').addEventListener('click',()=>generate());$('#replay-render-button').addEventListener('click',()=>generate({fresh:true}));
   $('#tab-original').addEventListener('click',()=>setView('original'));$('#tab-result').addEventListener('click',()=>setView('result'));
   for(const item of $$('.comparison-item'))item.addEventListener('click',()=>setView(item.dataset.view));
-  $('#compare-provider-results').addEventListener('click',()=>state.compare?setView('result'):showComparison());
   $('#product-hotspot-toggle').addEventListener('click',()=>{state.hotspotVisible=!state.hotspotVisible;updateHotspotNotice();});
   $('#product-hotspot-refresh').addEventListener('click',async()=>{
     const result=currentResult();if(!result)return;const button=$('#product-hotspot-refresh');button.disabled=true;
@@ -623,9 +666,16 @@ function bindEvents() {
 async function initialize() {
   if(state.initialized)return;state.initialized=true;addSessionActions();
   try {
-    const [catalogue,status,history]=await Promise.all([api('/api/catalogue'),api('/api/status'),api('/api/history')]);
+    const account=state.client||await api('/api/me'),requestedProject=new URLSearchParams(location.search).get('project');
+    state.client=account;
+    const projects=Array.isArray(account.projects)?account.projects:[];
+    const project=projects.find(item=>item.id===requestedProject)||projects[0];
+    if(!project?.id){returnToPortal('onboarding');return;}
+    state.projectId=project.id;state.cart=savedCart();
+    const [catalogue,status,history]=await Promise.all([api('/api/catalogue'),api('/api/status'),api(`/api/history?project_id=${encodeURIComponent(state.projectId)}`)]);
     state.catalogue=catalogue.products;state.catalogueRoles=catalogue.roles||[];state.catalogueActiveTotal=catalogue.active_total??catalogue.products.length;state.catalogueHistoricalTotal=catalogue.historical_run_only_total??0;state.providers=status.providers||{};state.generationEnabled=status.generation_enabled===true;state.hotspotWorkerReady=status.hotspots?.configured===true;state.history=history.runs||[];
-    $('#camera-button').disabled=false;$('#upload-button').disabled=false;$('#authentication-status').textContent='Session protégée active';$('#case-select').replaceChildren(new Option('Aucune photo ajoutée','',true,true));
+    $('#camera-button').disabled=false;$('#upload-button').disabled=false;$('#authentication-status').textContent=`Compte client actif · ${project.name||'Projet'}`;$('#case-select').replaceChildren(new Option('Aucune photo ajoutée','',true,true));
+    restoreStudioDraft();
     renderCatalogueExplorerOptions();renderCatalogueExplorer();renderProgrammes();renderProducts();renderHistory();updateInterface();
   } catch(error) {
     state.initialized=false;$('#connection-banner').textContent=error.message;$('#connection-banner').classList.remove('hidden');throw error;
@@ -634,8 +684,14 @@ async function initialize() {
 
 async function boot() {
   hideUnsupportedControls();bindEvents();renderProgrammes();renderProducts();renderHistory();renderSurfaceMessage();setView('original');
-  try { const auth=await api('/api/auth');if(!auth.authenticated){createAuthOverlay();return;}await initialize(); }
-  catch(error) { createAuthOverlay(error.message); }
+  try {
+    const auth=await api('/api/client-auth');
+    if(!auth.authenticated){returnToPortal('login');return;}
+    state.client=await api('/api/me');await initialize();
+  } catch(error) {
+    if(error.status===401){returnToPortal('login');return;}
+    $('#connection-banner').textContent=error.message;$('#connection-banner').classList.remove('hidden');
+  }
 }
 
 boot();

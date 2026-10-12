@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#292f27">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="description" content="Pilotage des clients et abonnements Aurimmo Intérieur.">
+  <title>Administration · Aurimmo Intérieur</title>
+  <link rel="stylesheet" href="/admin.css">
+  <script src="/admin.js" type="module"></script>
+</head>
+<body>
+  <a class="skip-link" href="#admin-main">Aller au contenu</a>
+
+  <header class="admin-header">
+    <a class="brand" href="/admin.html" aria-label="Aurimmo Intérieur, administration">
+      <svg class="brand-mark" width="34" height="34" viewBox="0 0 35 35" fill="none" aria-hidden="true"><path d="M7 28V15C7 9.2 11.7 4.5 17.5 4.5S28 9.2 28 15V28M2 28H33M11.5 28V16.5C11.5 13.2 14.2 10.5 17.5 10.5S23.5 13.2 23.5 16.5V28" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="brand-name">aurimmo<span>INTÉRIEUR</span></span>
+      <strong class="admin-tag">ADMINISTRATION</strong>
+    </a>
+    <nav class="header-actions" aria-label="Actions administrateur">
+      <span id="admin-email" class="admin-email" aria-live="polite"></span>
+      <a class="quiet-link" href="/portal.html">Espace client</a>
+      <button id="refresh-button" class="button button-light" type="button">Actualiser</button>
+      <button id="logout-button" class="button button-dark" type="button">Déconnexion</button>
+    </nav>
+  </header>
+
+  <main id="admin-main" class="admin-main">
+    <section class="intro" aria-labelledby="page-title">
+      <div>
+        <p class="eyebrow"><span></span> PILOTAGE CLIENT</p>
+        <h1 id="page-title">Tableau de bord</h1>
+        <p>Suivez les comptes, les abonnements, les crédits et les générations de l’outil Intérieur.</p>
+      </div>
+      <div class="sync-state">
+        <span id="sync-dot" aria-hidden="true"></span>
+        <p><strong id="sync-label">Connexion aux données…</strong><small id="sync-time">—</small></p>
+      </div>
+    </section>
+
+    <div id="feedback" class="feedback" role="status" aria-live="polite" hidden></div>
+
+    <section id="dashboard" hidden>
+      <h2 class="visually-hidden">Indicateurs</h2>
+      <div class="metrics-grid">
+        <article class="metric-card metric-primary">
+          <p>CLIENTS ENREGISTRÉS</p>
+          <strong id="metric-clients">—</strong>
+          <small id="metric-onboarded">— parcours complétés</small>
+        </article>
+        <article class="metric-card">
+          <p>ABONNEMENTS ACTIFS</p>
+          <strong id="metric-subscriptions">—</strong>
+          <small id="metric-plan-mix">—</small>
+        </article>
+        <article class="metric-card">
+          <p>CRÉDITS CONSOMMÉS</p>
+          <strong id="metric-consumed">—</strong>
+          <small id="metric-credits-period">Périodes client en cours</small>
+        </article>
+        <article class="metric-card">
+          <p>CRÉDITS RÉSERVÉS</p>
+          <strong id="metric-reserved">—</strong>
+          <small>Générations en cours</small>
+        </article>
+        <article class="metric-card">
+          <p>RENDUS SAUVEGARDÉS</p>
+          <strong id="metric-saved">—</strong>
+          <small id="metric-generations-total">— tentatives au total</small>
+        </article>
+        <article class="metric-card metric-warning">
+          <p>À RÉCONCILIER</p>
+          <strong id="metric-reconciliation">—</strong>
+          <small>Vérification manuelle requise</small>
+        </article>
+      </div>
+
+      <div class="insight-grid">
+        <section class="insight-card" aria-labelledby="plans-title">
+          <div class="section-heading">
+            <div><p class="section-kicker">ABONNEMENTS</p><h2 id="plans-title">Répartition des offres</h2></div>
+            <span id="plans-total" class="count-badge">— actifs</span>
+          </div>
+          <div class="plan-bars">
+            <div class="plan-row">
+              <div><strong>Essentiel</strong><span id="essential-count">— client</span></div>
+              <div class="bar"><span id="essential-bar"></span></div>
+              <b id="essential-percent">—</b>
+            </div>
+            <div class="plan-row">
+              <div><strong>Pro</strong><span id="pro-count">— client</span></div>
+              <div class="bar"><span id="pro-bar"></span></div>
+              <b id="pro-percent">—</b>
+            </div>
+          </div>
+        </section>
+
+        <section class="insight-card" aria-labelledby="activity-title">
+          <div class="section-heading">
+            <div><p class="section-kicker">ACTIVITÉ</p><h2 id="activity-title">État des générations</h2></div>
+          </div>
+          <dl class="activity-list">
+            <div><dt><i class="state-dot state-saved"></i>Rendus sauvegardés</dt><dd id="activity-saved">—</dd></div>
+            <div><dt><i class="state-dot state-running"></i>Requêtes lancées</dt><dd id="activity-started">—</dd></div>
+            <div><dt><i class="state-dot state-reserved"></i>Crédits réservés</dt><dd id="activity-reserved">—</dd></div>
+            <div><dt><i class="state-dot state-failed"></i>Échecs avant appel</dt><dd id="activity-failed">—</dd></div>
+            <div><dt><i class="state-dot state-failed"></i>Échecs confirmés après appel</dt><dd id="activity-failed-after">—</dd></div>
+          </dl>
+        </section>
+      </div>
+
+      <section id="reconciliations-card" class="reconciliations-card" aria-labelledby="reconciliations-title">
+        <div class="clients-heading">
+          <div>
+            <p class="section-kicker">RAPPROCHEMENT MANUEL</p>
+            <h2 id="reconciliations-title">Générations à résoudre</h2>
+          </div>
+          <span id="reconciliations-count" class="count-badge">— tentative</span>
+        </div>
+        <p class="reconciliation-intro">Chaque décision est définitive et auditée. Elle ne lance jamais Muse. Confirmer un rendu exige une image et une trace privées strictement concordantes ; clôturer sans rendu conserve le crédit déjà consommé.</p>
+        <div id="reconciliations-list" class="reconciliations-list"></div>
+        <div id="reconciliations-empty" class="empty-state" hidden>Aucune génération ne nécessite de rapprochement.</div>
+      </section>
+
+      <section class="clients-card" aria-labelledby="clients-title">
+        <div class="clients-heading">
+          <div>
+            <p class="section-kicker">BASE CLIENTS DÉDIÉE</p>
+            <h2 id="clients-title">Clients et abonnements</h2>
+          </div>
+          <span id="visible-count" class="count-badge">— client</span>
+        </div>
+
+        <form id="filters" class="filters" aria-label="Filtrer les clients">
+          <label class="search-field">
+            <span class="visually-hidden">Rechercher un client</span>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.7"/><path d="m16.5 16.5 4 4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+            <input id="search-input" type="search" placeholder="Nom, société ou identifiant…" autocomplete="off">
+          </label>
+          <label><span>Offre</span><select id="plan-filter"><option value="all">Toutes les offres</option><option value="essential">Essentiel</option><option value="pro">Pro</option><option value="none">Sans offre</option></select></label>
+          <label><span>État</span><select id="status-filter"><option value="all">Tous les états</option><option value="active">Actif</option><option value="past_due">Paiement requis</option><option value="canceled">Résilié</option><option value="none">Sans abonnement</option></select></label>
+        </form>
+
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Client</th><th>Abonnement</th><th>Crédits du mois</th><th>Générations</th><th>Projets</th><th>Dernière activité</th></tr></thead>
+            <tbody id="clients-body"></tbody>
+          </table>
+        </div>
+        <div id="empty-state" class="empty-state" hidden>Aucun client ne correspond à ces filtres.</div>
+        <p class="privacy-note">Les informations affichées sont limitées au suivi opérationnel. Aucun secret, jeton de session ou identifiant de paiement brut n’est exposé.</p>
+      </section>
+    </section>
+
+    <section id="access-state" class="access-state" hidden>
+      <span aria-hidden="true">A</span>
+      <p class="section-kicker">ACCÈS RÉSERVÉ</p>
+      <h2 id="access-title">Connexion requise</h2>
+      <p id="access-copy">Connectez-vous avec un compte administrateur autorisé.</p>
+      <a id="access-link" class="button button-dark" href="/portal.html?view=login&amp;return_to=%2Fadmin.html">Se connecter</a>
+    </section>
+  </main>
+
+  <footer class="admin-footer">
+    <span>Aurimmo Intérieur · Administration</span>
+    <p>Données opérationnelles en temps réel, sans estimation.</p>
+  </footer>
+
+  <noscript><p class="noscript">JavaScript est nécessaire pour afficher le suivi clients.</p></noscript>
+</body>
+</html>

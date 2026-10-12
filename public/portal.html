@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#f4f1e9">
+  <meta name="description" content="Votre espace Aurimmo : projets, créations, crédits et abonnement.">
+  <title>Mon espace · Aurimmo Intérieur</title>
+  <link rel="stylesheet" href="/portal.css">
+  <script src="/portal.js" type="module"></script>
+</head>
+<body>
+  <a class="skip-link" href="#portal-main">Aller au contenu</a>
+
+  <header class="portal-header">
+    <a class="brand" href="/portal.html" aria-label="Aurimmo Intérieur, accueil de votre espace">
+      <svg class="brand-mark" width="35" height="35" viewBox="0 0 35 35" fill="none" aria-hidden="true"><path d="M7 28V15C7 9.2 11.7 4.5 17.5 4.5S28 9.2 28 15V28M2 28H33M11.5 28V16.5C11.5 13.2 14.2 10.5 17.5 10.5S23.5 13.2 23.5 16.5V28" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="brand-name">aurimmo<span class="brand-subtitle">INTÉRIEUR</span></span>
+    </a>
+    <nav id="public-nav" class="public-nav" aria-label="Navigation publique">
+      <a href="#how-it-works">Comment ça marche</a>
+      <button class="text-button" type="button" data-auth-intent="login">Se connecter</button>
+      <button class="button button-dark button-compact" type="button" data-auth-intent="register">Créer mon espace</button>
+    </nav>
+    <div id="member-header" class="member-header" hidden>
+      <span id="header-credit-badge" class="credit-badge">Crédits indisponibles</span>
+      <button id="mobile-menu-button" class="mobile-menu-button" type="button" aria-controls="member-mobile-menu" aria-expanded="false">
+        <span class="visually-hidden">Ouvrir le menu</span><span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span>
+      </button>
+      <button class="account-chip" type="button" data-dashboard-target="account" aria-label="Ouvrir mon compte">
+        <span id="header-avatar" class="avatar" aria-hidden="true">A</span>
+        <span><strong id="header-user-name">Mon compte</strong><small id="header-plan-name">Offre non chargée</small></span>
+      </button>
+    </div>
+  </header>
+
+  <div id="member-mobile-menu" class="member-mobile-menu" hidden>
+    <button type="button" data-dashboard-target="overview">Vue d’ensemble</button>
+    <button type="button" data-dashboard-target="projects">Mes projets</button>
+    <button type="button" data-dashboard-target="history">Mes créations</button>
+    <button type="button" data-dashboard-target="billing">Crédits &amp; offre</button>
+    <button type="button" data-dashboard-target="account">Mon compte</button>
+  </div>
+
+  <div id="global-feedback" class="global-feedback" role="status" aria-live="polite" hidden></div>
+
+  <main id="portal-main">
+    <section id="auth-view" class="auth-view" aria-labelledby="auth-hero-title">
+      <div class="auth-hero">
+        <div class="auth-copy">
+          <p class="eyebrow"><span></span> VOTRE ESPACE CRÉATIF</p>
+          <h1 id="auth-hero-title">Imaginez votre intérieur.<br><em>Gardez chaque idée.</em></h1>
+          <p class="hero-copy">Créez vos projets, retrouvez vos rendus et suivez simplement vos crédits depuis un espace personnel.</p>
+          <ul class="hero-points" aria-label="Avantages de votre espace Aurimmo">
+            <li><span aria-hidden="true">01</span> Vos projets réunis au même endroit</li>
+            <li><span aria-hidden="true">02</span> Un parcours guidé, de la photo au rendu</li>
+            <li><span aria-hidden="true">03</span> Vos crédits et votre abonnement en toute clarté</li>
+          </ul>
+        </div>
+
+        <section class="auth-card" aria-labelledby="auth-card-title">
+          <div class="auth-intent" role="tablist" aria-label="Connexion ou création de compte">
+            <button id="register-tab" type="button" role="tab" aria-selected="true" aria-controls="auth-email-panel" data-auth-intent="register">Créer mon compte</button>
+            <button id="login-tab" type="button" role="tab" aria-selected="false" aria-controls="auth-email-panel" data-auth-intent="login">Me connecter</button>
+          </div>
+          <div id="auth-email-panel" role="tabpanel" aria-labelledby="register-tab">
+            <p class="card-kicker" id="auth-kicker">COMMENCER</p>
+            <h2 id="auth-card-title">Ouvrez votre espace.</h2>
+            <p id="auth-card-copy" class="muted">Saisissez votre e-mail. Nous vous envoyons un lien personnel, sans mot de passe à retenir.</p>
+            <form id="email-form" class="stack-form">
+              <label for="auth-email">Adresse e-mail</label>
+              <input id="auth-email" name="email" type="email" autocomplete="email" maxlength="254" placeholder="vous@exemple.fr" required>
+              <button id="email-submit" class="button button-dark" type="submit">Recevoir mon lien <span aria-hidden="true">→</span></button>
+            </form>
+            <p class="form-note">Le lien expire rapidement et ne peut être utilisé qu’une fois.</p>
+          </div>
+          <div id="auth-code-panel" role="tabpanel" aria-labelledby="auth-card-title" hidden>
+            <button id="change-email-button" class="back-button" type="button">← Modifier l’e-mail</button>
+            <p class="card-kicker">VÉRIFICATION</p>
+            <h2>Consultez votre e-mail.</h2>
+            <p class="muted">Cliquez sur le lien sécurisé envoyé à <strong id="code-email"></strong>. Si l’e-mail affiche aussi un code à 6 chiffres, saisissez-le ci-dessous.</p>
+            <form id="code-form" class="stack-form">
+              <label for="auth-code">Code de vérification</label>
+              <input id="auth-code" class="code-input" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="000000" required>
+              <button id="code-submit" class="button button-dark" type="submit">Ouvrir mon espace <span aria-hidden="true">→</span></button>
+            </form>
+            <button id="resend-code-button" class="text-button resend-button" type="button">Renvoyer l’e-mail</button>
+          </div>
+          <p id="auth-feedback" class="inline-feedback" role="status" aria-live="polite"></p>
+        </section>
+      </div>
+
+      <section id="how-it-works" class="how-section" aria-labelledby="how-title">
+        <div class="section-heading centered">
+          <p class="eyebrow"><span></span> SIMPLE, DÈS LE DÉPART</p>
+          <h2 id="how-title">Votre première création<br>en quatre étapes.</h2>
+        </div>
+        <ol class="journey-list">
+          <li><b>1</b><span><strong>Créez votre espace</strong><small>Un e-mail et un lien sécurisé.</small></span></li>
+          <li><b>2</b><span><strong>Présentez votre projet</strong><small>Votre pièce et quelques informations utiles.</small></span></li>
+          <li><b>3</b><span><strong>Ouvrez le studio</strong><small>Ajoutez votre photo et préparez votre intérieur.</small></span></li>
+          <li><b>4</b><span><strong>Générez quand vous êtes prêt</strong><small>La formule n’est proposée qu’avant le premier rendu.</small></span></li>
+        </ol>
+      </section>
+    </section>
+
+    <section id="onboarding-view" class="onboarding-view" aria-labelledby="onboarding-title" hidden>
+      <div class="onboarding-shell">
+        <div class="onboarding-heading">
+          <p class="eyebrow"><span></span> BIENVENUE CHEZ AURIMMO</p>
+          <h1 id="onboarding-title">Faisons connaissance.</h1>
+          <p>Ces informations servent uniquement à organiser votre espace et votre premier projet.</p>
+          <ol class="stepper" aria-label="Étapes de création du compte">
+            <li class="active" aria-current="step"><b>1</b><span>Vos informations</span></li>
+            <li><b>2</b><span>Votre premier projet</span></li>
+            <li><b>3</b><span>Le studio</span></li>
+          </ol>
+        </div>
+        <form id="onboarding-form" class="onboarding-card">
+          <fieldset>
+            <legend>Vos informations</legend>
+            <div class="form-grid two-columns">
+              <label>Prénom<input id="onboarding-first-name" name="first_name" autocomplete="given-name" maxlength="80" required></label>
+              <label>Nom<input id="onboarding-last-name" name="last_name" autocomplete="family-name" maxlength="80" required></label>
+              <label>Téléphone <small>Facultatif</small><input id="onboarding-phone" name="phone" type="tel" autocomplete="tel" maxlength="30" placeholder="06 00 00 00 00"></label>
+              <label>Société <small>Facultatif</small><input id="onboarding-company" name="company" autocomplete="organization" maxlength="120"></label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Votre premier projet</legend>
+            <div class="form-grid two-columns">
+              <label>Nom du projet<input id="onboarding-project-name" name="project_name" maxlength="120" placeholder="Mon salon" required></label>
+              <label>Type de pièce<select id="onboarding-room-type" name="room_type" required><option value="living_room">Salon</option></select></label>
+              <label class="full-column">Adresse ou repère <small>Facultatif</small><input id="onboarding-address" name="address" autocomplete="street-address" maxlength="240" placeholder="Maison principale, appartement Nantes…"></label>
+            </div>
+          </fieldset>
+          <label class="consent-row"><input id="onboarding-terms" name="terms" type="checkbox" required><span>Je confirme que les informations saisies sont exactes et j’accepte leur utilisation pour fournir le service.</span></label>
+          <button id="onboarding-submit" class="button button-dark" type="submit">Ouvrir le studio <span aria-hidden="true">→</span></button>
+          <p id="onboarding-feedback" class="inline-feedback" role="status" aria-live="polite"></p>
+        </form>
+      </div>
+    </section>
+
+    <section id="plans-view" class="plans-view" aria-labelledby="plans-title" hidden>
+      <div class="plans-shell">
+        <button id="plans-back-button" class="back-button" type="button" hidden>← Retour à mon espace</button>
+        <div class="section-heading centered">
+          <p class="eyebrow"><span></span> À CHAQUE ENVIE, SON RYTHME</p>
+          <h1 id="plans-title">Choisissez votre formule.</h1>
+          <p>Votre projet reste enregistré. Choisissez le nombre d’images adapté à votre rythme avant de lancer le rendu.</p>
+        </div>
+        <div class="period-switch" role="group" aria-label="Période de facturation">
+          <button type="button" data-billing-period="monthly" aria-pressed="true">Mensuel</button>
+          <button type="button" data-billing-period="yearly" aria-pressed="false">Annuel <span>le plus avantageux</span></button>
+        </div>
+        <div id="plans-grid" class="plans-grid" aria-live="polite"></div>
+        <p id="plans-feedback" class="inline-feedback centered-feedback" role="status" aria-live="polite"></p>
+        <p class="plans-footnote">Paiement sécurisé · résiliation possible à tout moment · les crédits sont renouvelés à chaque période.</p>
+      </div>
+    </section>
+
+    <section id="dashboard-view" class="dashboard-view" hidden>
+      <aside class="dashboard-sidebar" aria-label="Navigation de votre espace">
+        <div>
+          <p class="sidebar-label">VOTRE ESPACE</p>
+          <nav>
+            <button type="button" data-dashboard-target="overview" aria-current="page"><span aria-hidden="true">⌂</span> Vue d’ensemble</button>
+            <button type="button" data-dashboard-target="projects"><span aria-hidden="true">□</span> Mes projets <b id="sidebar-project-count"></b></button>
+            <button type="button" data-dashboard-target="history"><span aria-hidden="true">◫</span> Mes créations <b id="sidebar-history-count"></b></button>
+            <button type="button" data-dashboard-target="billing"><span aria-hidden="true">◇</span> Crédits &amp; offre</button>
+          </nav>
+        </div>
+        <div class="sidebar-bottom">
+          <button type="button" data-dashboard-target="account"><span aria-hidden="true">○</span> Mon compte</button>
+          <a href="/studio.html"><span aria-hidden="true">↗</span> Ouvrir le studio</a>
+        </div>
+      </aside>
+
+      <div class="dashboard-main">
+        <section id="dashboard-overview" class="dashboard-panel" aria-labelledby="overview-title">
+          <div class="dashboard-heading">
+            <div><p class="eyebrow"><span></span> VUE D’ENSEMBLE</p><h1 id="overview-title">Bonjour <span id="overview-first-name"></span>.</h1><p>Vos projets, vos créations et votre formule en un coup d’œil.</p></div>
+            <a class="button button-dark" href="/studio.html">Créer une image <span aria-hidden="true">→</span></a>
+          </div>
+          <div class="metrics-grid">
+            <article class="metric-card accent"><span class="metric-label">CRÉDITS DISPONIBLES</span><strong id="metric-credits">—</strong><small id="metric-credits-detail">Chargement…</small></article>
+            <article class="metric-card"><span class="metric-label">PROJETS</span><strong id="metric-projects">—</strong><small>dans votre espace</small></article>
+            <article class="metric-card"><span class="metric-label">CRÉATIONS</span><strong id="metric-generations">—</strong><small>dans votre historique</small></article>
+            <article class="metric-card"><span class="metric-label">VOTRE FORMULE</span><strong id="metric-plan">—</strong><button class="text-button" type="button" data-dashboard-target="billing">Gérer mon offre →</button></article>
+          </div>
+          <section class="dashboard-block" aria-labelledby="recent-projects-title">
+            <div class="block-heading"><div><p class="card-kicker">VOS DOSSIERS</p><h2 id="recent-projects-title">Projets récents</h2></div><button class="text-button" type="button" data-dashboard-target="projects">Voir tous les projets →</button></div>
+            <div id="recent-projects" class="project-grid"><p class="empty-state">Chargement de vos projets…</p></div>
+          </section>
+          <section class="dashboard-block" aria-labelledby="recent-history-title">
+            <div class="block-heading"><div><p class="card-kicker">VOS IMAGES</p><h2 id="recent-history-title">Dernières créations</h2></div><button class="text-button" type="button" data-dashboard-target="history">Voir tout l’historique →</button></div>
+            <div id="recent-history" class="history-grid"><p class="empty-state">Chargement de vos créations…</p></div>
+          </section>
+        </section>
+
+        <section id="dashboard-projects" class="dashboard-panel" aria-labelledby="projects-title" hidden>
+          <div class="dashboard-heading compact-heading"><div><p class="eyebrow"><span></span> VOS DOSSIERS</p><h1 id="projects-title">Mes projets.</h1><p>Chaque projet réunit sa pièce et ses créations.</p></div><button id="new-project-button" class="button button-dark" type="button">Nouveau projet <span aria-hidden="true">＋</span></button></div>
+          <form id="new-project-form" class="new-project-form" hidden>
+            <div class="form-grid three-columns">
+              <label>Nom du projet<input id="new-project-name" name="name" maxlength="120" placeholder="Mon salon" required></label>
+              <label>Type de pièce<select id="new-project-room" name="room_type" required><option value="living_room">Salon</option></select></label>
+              <label>Adresse ou repère <small>Facultatif</small><input id="new-project-address" name="address" maxlength="240"></label>
+            </div>
+            <div class="form-actions"><button id="cancel-project-button" class="button" type="button">Annuler</button><button class="button button-dark" type="submit">Créer le projet</button></div>
+            <p id="project-form-feedback" class="inline-feedback" role="status" aria-live="polite"></p>
+          </form>
+          <div id="all-projects" class="project-grid expanded-grid"><p class="empty-state">Chargement de vos projets…</p></div>
+        </section>
+
+        <section id="dashboard-history" class="dashboard-panel" aria-labelledby="history-title" hidden>
+          <div class="dashboard-heading compact-heading"><div><p class="eyebrow"><span></span> VOS IMAGES</p><h1 id="history-title">Mes créations.</h1><p>Retrouvez les rendus enregistrés dans chacun de vos projets.</p></div><a class="button button-dark" href="/studio.html">Nouvelle création <span aria-hidden="true">→</span></a></div>
+          <div id="all-history" class="history-grid expanded-grid"><p class="empty-state">Chargement de votre historique…</p></div>
+        </section>
+
+        <section id="dashboard-billing" class="dashboard-panel" aria-labelledby="billing-title" hidden>
+          <div class="dashboard-heading compact-heading"><div><p class="eyebrow"><span></span> CRÉDITS &amp; OFFRE</p><h1 id="billing-title">Votre rythme de création.</h1><p>Consultez votre solde et gérez votre abonnement.</p></div></div>
+          <div class="billing-summary">
+            <article class="credit-summary"><p class="card-kicker">CRÉDITS DISPONIBLES</p><strong id="billing-credit-count">—</strong><p id="billing-credit-copy">Informations indisponibles pour le moment.</p><div class="credit-progress" role="progressbar" aria-label="Crédits utilisés" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="billing-credit-progress"></span></div><small id="billing-renewal">Date de renouvellement indisponible</small></article>
+            <article class="subscription-summary"><p class="card-kicker">ABONNEMENT</p><h2 id="billing-plan-name">Informations indisponibles</h2><p id="billing-plan-status">L’état de l’abonnement n’a pas encore été chargé.</p><button id="billing-portal-button" class="button" type="button" disabled>Gérer l’abonnement <span aria-hidden="true">↗</span></button></article>
+          </div>
+          <div class="block-heading offers-heading"><div><p class="card-kicker">LES FORMULES</p><h2>Changer de rythme</h2></div><button id="show-plans-button" class="text-button" type="button">Comparer les offres →</button></div>
+          <p class="quiet-note">Un rendu réussi utilise un crédit. Les informations de facturation proviennent toujours de votre compte.</p>
+        </section>
+
+        <section id="dashboard-account" class="dashboard-panel" aria-labelledby="account-title" hidden>
+          <div class="dashboard-heading compact-heading"><div><p class="eyebrow"><span></span> VOTRE COMPTE</p><h1 id="account-title">Vos informations.</h1><p>Identité, accès et préférences de votre espace.</p></div></div>
+          <div class="account-layout">
+            <article class="profile-card">
+              <div id="account-avatar" class="profile-avatar" aria-hidden="true">A</div>
+              <div><h2 id="account-full-name">Compte Aurimmo</h2><p id="account-email">Adresse e-mail indisponible</p><p id="account-company" class="muted"></p></div>
+            </article>
+            <div class="account-actions">
+              <button class="account-action" type="button" data-dashboard-target="billing"><span><strong>Mon abonnement</strong><small id="account-plan-copy">Informations indisponibles</small></span><b aria-hidden="true">→</b></button>
+              <button class="account-action" type="button" data-dashboard-target="projects"><span><strong>Mes projets</strong><small>Retrouver et poursuivre mes dossiers</small></span><b aria-hidden="true">→</b></button>
+              <button id="logout-button" class="account-action danger" type="button"><span><strong>Se déconnecter</strong><small>Fermer la session sur cet appareil</small></span><b aria-hidden="true">↗</b></button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <footer id="portal-footer" class="portal-footer">
+    <span>aurimmo <small>/ Intérieur</small></span>
+    <p>Votre espace personnel de création d’intérieurs.</p>
+    <a href="mailto:contact@aurimmo.fr">Besoin d’aide ?</a>
+  </footer>
+
+  <noscript><p class="noscript">Activez JavaScript pour accéder à votre espace Aurimmo.</p></noscript>
+</body>
+</html>
