@@ -5,7 +5,7 @@ import test from 'node:test';
 import {ACCESS_COOKIE,REFRESH_COOKIE,__test as identityTest,accessTokenFromRequest,normalizeEmail,refreshTokenFromRequest,validUUID} from '../api/_identity.mjs';
 import {readJSON} from '../api/_security.mjs';
 import {BILLING_PLANS,__test as stripeTest,normalizeBillingPeriod,publicPlans,stripePriceFor,stripePriceMatchesOffer,stripeWebhookConfigured,verifyStripeSignature} from '../api/_stripe.mjs';
-import {__test as supabaseTest,supabaseAdminAuthFetch,supabaseAdminFetch} from '../api/_supabase.mjs';
+import {__test as supabaseTest,supabaseAdminFetch} from '../api/_supabase.mjs';
 import {__test as onboardingTest} from '../server/routes/onboarding.mjs';
 import {__test as projectsTest} from '../server/routes/projects.mjs';
 import {__test as checkoutTest} from '../server/routes/billing-checkout.mjs';
@@ -144,40 +144,21 @@ test('JSON bodies work both after Vercel parsing and as a raw request stream',as
   await assert.rejects(()=>readJSON({body:{value:'x'.repeat(100)}},16),error=>error.status===413);
 });
 
-test('OTP delivery is authorized atomically, generated server-side and sent through the private mail relay',async()=>withEnvAsync({
-  PUBLIC_APP_URL:'https://interieur-ia.aurimmo.fr',
-  AUTH_EMAIL_RELAY_URL:'https://interieur-ia-app.example.workers.dev/api/portal-auth-email',
-  AUTH_EMAIL_RELAY_SECRET:'s'.repeat(48),
-},async()=>{
+test('OTP delivery is authorized atomically before Supabase sends mail and a cooldown never sends',async()=>{
   const calls=[];
   const allowed=await clientAuthTest.requestCode({email:'client@example.com',intent:'signup'}, {
     adminRpc:async name=>{calls.push(`db:${name}`);return [{allowed:true,retry_after_seconds:0,reason:'allowed'}];},
-    adminAuthFetch:async(path,options)=>{calls.push(`auth:${path}`);assert.equal(options.body.type,'signup');assert.match(options.body.password,/^[A-Za-z0-9_-]{32,}$/);return {email_otp:'123456',action_link:'https://example.supabase.co/auth/v1/verify?token=opaque&type=signup'};},
-    mailFetch:async(_url,options)=>{calls.push('mail');assert.equal(JSON.parse(options.body).code,'123456');return new Response('{}',{status:200});},
+    authFetch:async path=>{calls.push(`auth:${path}`);return {};},
   });
-  assert.deepEqual(calls,['db:begin_otp_challenge','auth:admin/generate_link','mail']);
+  assert.deepEqual(calls,['db:begin_otp_challenge','auth:otp']);
   assert.equal(allowed.retry_after,60);
   let sent=false;
   await assert.rejects(()=>clientAuthTest.requestCode({email:'client@example.com',intent:'login'}, {
     adminRpc:async()=>[{allowed:false,retry_after_seconds:47,reason:'cooldown'}],
-    adminAuthFetch:async()=>{sent=true;},
-    mailFetch:async()=>{sent=true;},
+    authFetch:async()=>{sent=true;},
   }),error=>error.code==='otp_cooldown'&&error.retryAfter===47);
   assert.equal(sent,false);
-}));
-
-test('login mail never creates an unknown account and generated links stay strict',async()=>withEnvAsync({
-  PUBLIC_APP_URL:'https://interieur-ia.aurimmo.fr',
-  AUTH_EMAIL_RELAY_URL:'https://interieur-ia-app.example.workers.dev/api/portal-auth-email',
-  AUTH_EMAIL_RELAY_SECRET:'s'.repeat(48),
-},async()=>{
-  await assert.rejects(()=>clientAuthTest.requestCode({email:'missing@example.com',intent:'login'}, {
-    adminRpc:async()=>[{allowed:true}],adminFetch:async()=>[],adminAuthFetch:async()=>{throw new Error('must not run');},
-  }),error=>error.code==='account_not_found');
-  assert.equal(clientAuthTest.generatedLink({email_otp:'123456',action_link:'https://example.supabase.co/auth/v1/verify?token=x'}).code,'123456');
-  assert.equal(clientAuthTest.generatedLink({email_otp:'12',action_link:'https://example.supabase.co/auth/v1/verify?token=x'}),null);
-  assert.equal(clientAuthTest.generatedLink({email_otp:'123456',action_link:'http://example.supabase.co/auth/v1/verify?token=x'}),null);
-}));
+});
 
 test('magic-link session verifies both tokens and refuses cross-user refresh tokens',async()=>{
   const access='access_token_'.padEnd(32,'a'),refresh='Ab3dEf7hIj9K';
@@ -222,18 +203,6 @@ test('new Supabase secret keys stay in apikey instead of an invalid Bearer heade
   await supabaseAdminFetch('plans?select=code',{fetchImpl:async(_url,options)=>{received=options;return new Response('[]',{status:200,headers:{'Content-Type':'application/json'}});}});
   assert.equal(received.headers.apikey,'sb_secret_unit_test');
   assert.equal(received.headers.Authorization,undefined);
-}));
-
-test('Supabase admin auth uses the secret only in the apikey header for new secret keys',()=>withEnvAsync({
-  SUPABASE_URL:'https://example.supabase.co',
-  SUPABASE_PUBLISHABLE_KEY:'sb_publishable_unit_test',
-  SUPABASE_SECRET_KEY:'sb_secret_unit_test',
-},async()=>{
-  let received;
-  await supabaseAdminAuthFetch('admin/generate_link',{body:{type:'magiclink',email:'client@example.com'},fetchImpl:async(url,options)=>{received={url,options};return new Response('{"email_otp":"123456"}',{status:200,headers:{'Content-Type':'application/json'}});}});
-  assert.equal(received.url,'https://example.supabase.co/auth/v1/admin/generate_link');
-  assert.equal(received.options.headers.apikey,'sb_secret_unit_test');
-  assert.equal(received.options.headers.Authorization,undefined);
 }));
 
 test('portal onboarding and projects accept room/address payloads without property_type',()=>{

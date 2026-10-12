@@ -1,7 +1,7 @@
-import {createHash,randomBytes} from 'node:crypto';
+import {createHash} from 'node:crypto';
 import {accessTokenFromRequest,clearClientSession,normalizeEmail,readIdentity,refreshTokenFromRequest,setClientSession,validUUID} from '../../api/_identity.mjs';
 import {readJSON,sameOrigin,sendJSON} from '../../api/_security.mjs';
-import {SupabaseRequestError,supabaseAdminAuthFetch,supabaseAdminFetch,supabaseAdminRpc,supabaseAuthFetch} from '../../api/_supabase.mjs';
+import {SupabaseRequestError,supabaseAdminFetch,supabaseAdminRpc,supabaseAuthFetch} from '../../api/_supabase.mjs';
 
 const emailHash=email=>createHash('sha256').update(email).digest('hex');
 
@@ -25,42 +25,7 @@ async function ensureProfile(user,{adminFetch=supabaseAdminFetch}={}) {
   } catch {}
 }
 
-function publicPortalURL() {
-  const raw=String(process.env.PUBLIC_APP_URL||'').trim();
-  try {
-    const url=new URL(raw);
-    if(url.protocol!=='https:'||url.username||url.password)return null;
-    url.pathname='/portal.html';url.search='';url.hash='';
-    return url.toString();
-  } catch { return null; }
-}
-
-function generatedLink(value) {
-  const code=String(value?.email_otp||'').trim(),link=String(value?.action_link||'').trim();
-  if(!/^\d{6}$/.test(code))return null;
-  try {
-    const url=new URL(link);
-    if(url.protocol!=='https:'||url.username||url.password||!/\/auth\/v1\/verify$/.test(url.pathname))return null;
-  } catch { return null; }
-  return {code,link};
-}
-
-async function deliverCode(email,generated,{fetchImpl=fetch}={}) {
-  const endpoint=String(process.env.AUTH_EMAIL_RELAY_URL||'').trim(),secret=String(process.env.AUTH_EMAIL_RELAY_SECRET||'').trim();
-  let url;
-  try {url=new URL(endpoint);}catch{}
-  if(!url||url.protocol!=='https:'||url.username||url.password||secret.length<32)
-    throw Object.assign(new Error('Envoi des e-mails momentanément indisponible.'),{status:503,code:'email_delivery_not_configured'});
-  let response;
-  try {
-    response=await fetchImpl(url,{method:'POST',headers:{'Content-Type':'application/json','X-Aurimmo-Auth-Mail-Secret':secret},body:JSON.stringify({email,code:generated.code,action_link:generated.link}),redirect:'error',signal:AbortSignal.timeout(10_000)});
-  } catch {
-    throw Object.assign(new Error('Envoi des e-mails momentanément indisponible.'),{status:503,code:'email_delivery_unreachable'});
-  }
-  if(!response.ok)throw Object.assign(new Error('L’e-mail de connexion n’a pas pu être envoyé. Réessayez dans un instant.'),{status:502,code:'email_delivery_failed'});
-}
-
-async function requestCode(body,{adminRpc=supabaseAdminRpc,adminFetch=supabaseAdminFetch,adminAuthFetch=supabaseAdminAuthFetch,mailFetch=fetch}={}) {
+async function requestCode(body,{adminRpc=supabaseAdminRpc,authFetch=supabaseAuthFetch}={}) {
   const email=normalizeEmail(body.email),requestedMode=body.intent??body.mode,mode=requestedMode==='login'?'login':'signup';
   if(!email)throw Object.assign(new Error('Adresse e-mail invalide.'),{status:400,code:'invalid_email'});
   const permission=first(await adminRpc('begin_otp_challenge',{p_email_hash:emailHash(email),p_mode:mode}));
@@ -71,19 +36,9 @@ async function requestCode(body,{adminRpc=supabaseAdminRpc,adminFetch=supabaseAd
       status:429,code:exhausted?'otp_attempts_exhausted':'otp_cooldown',retryAfter,
     });
   }
-  if(mode==='login') {
-    const rows=await adminFetch(`profiles?select=user_id&email=eq.${encodeURIComponent(email)}&limit=1`);
-    if(!Array.isArray(rows)||!rows.length)throw Object.assign(new Error('Aucun compte n’est associé à cette adresse. Créez d’abord votre espace.'),{status:404,code:'account_not_found'});
-  }
-  const redirectTo=publicPortalURL();
-  if(!redirectTo)throw Object.assign(new Error('Envoi des e-mails momentanément indisponible.'),{status:503,code:'public_app_url_not_configured'});
-  const link=await adminAuthFetch('admin/generate_link',{method:'POST',body:{
-    type:mode==='signup'?'signup':'magiclink',email,redirect_to:redirectTo,
-    ...(mode==='signup'?{password:randomBytes(32).toString('base64url')}:{}),
-  }});
-  const generated=generatedLink(link);
-  if(!generated)throw Object.assign(new Error('L’e-mail de connexion n’a pas pu être préparé.'),{status:502,code:'invalid_generated_link'});
-  await deliverCode(email,generated,{fetchImpl:mailFetch});
+  const payload={email,create_user:mode==='signup'};
+  if(typeof body.captcha_token==='string'&&body.captcha_token.length<=4096)payload.gotrue_meta_security={captcha_token:body.captcha_token};
+  await authFetch('otp',{method:'POST',body:payload});
   return {sent:true,expires_in:900,max_attempts:5,retry_after:60};
 }
 
@@ -169,4 +124,4 @@ export default async function handler(req,res) {
   }
 }
 
-export const __test={emailHash,clientUser,sessionTokens,publicPortalURL,generatedLink,deliverCode,requestCode,establishSession};
+export const __test={emailHash,clientUser,sessionTokens,requestCode,establishSession};
