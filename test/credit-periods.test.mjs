@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {subscriptionCreditWindow} from '../server/routes/me.mjs';
+import {subscriptionCreditWindow} from '../api/me.mjs';
 
 test('a monthly plan uses the exact Stripe billing period',()=>{
   const subscription={billing_interval:'month',current_period_start:'2026-09-30T08:15:27.000Z',current_period_end:'2026-10-30T08:15:27.000Z'};

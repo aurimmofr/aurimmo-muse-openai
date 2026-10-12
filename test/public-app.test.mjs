@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { __test } from '../api/generate.mjs';
 import {__test as hotspotDispatchTest,dispatchHotspotWorker,preflightHotspotWorker} from '../api/_hotspot-dispatch.mjs';
-import { referencedPrivatePaths,validPrivatePath } from '../server/routes/delete.mjs';
+import { referencedPrivatePaths,validPrivatePath } from '../api/delete.mjs';
 
 const catalogue=JSON.parse(await readFile(new URL('../public/catalogue.json',import.meta.url),'utf8'));
 
@@ -106,7 +106,7 @@ test('private deletion is restricted to exact upload and result paths',()=>{
 });
 
 test('client APIs use Supabase identity and legacy shared-password configuration is absent',async()=>{
-  const protectedSources=await Promise.all(['../api/generate.mjs','../api/upload.mjs','../api/history.mjs','../server/routes/status.mjs'].map(path=>readFile(new URL(path,import.meta.url),'utf8')));
+  const protectedSources=await Promise.all(['generate','upload','history','status'].map(name=>readFile(new URL(`../api/${name}.mjs`,import.meta.url),'utf8')));
   for(const source of protectedSources){assert.match(source,/requireIdentity/);assert.doesNotMatch(source,/requireAuth|APP_PASSWORD/);}
   const security=await readFile(new URL('../api/_security.mjs',import.meta.url),'utf8');
   const envExample=await readFile(new URL('../.env.example',import.meta.url),'utf8');

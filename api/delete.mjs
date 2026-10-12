@@ -1,7 +1,7 @@
 import {del} from '@vercel/blob';
-import {claimSourceAssetDeletion,ownedAssetByPath,validUploadPath} from '../../api/_client-data.mjs';
-import {requireIdentity} from '../../api/_identity.mjs';
-import {readJSON,sameOrigin,sendJSON} from '../../api/_security.mjs';
+import {claimSourceAssetDeletion,ownedAssetByPath,validUploadPath} from './_client-data.mjs';
+import {requireIdentity} from './_identity.mjs';
+import {readJSON,sameOrigin,sendJSON} from './_security.mjs';
 
 export function validPrivatePath(value) {
   return typeof value==='string'&&/^(uploads|results)\/[a-zA-Z0-9._-]+$/.test(value);

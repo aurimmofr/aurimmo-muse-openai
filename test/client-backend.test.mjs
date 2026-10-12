@@ -6,12 +6,11 @@ import {ACCESS_COOKIE,REFRESH_COOKIE,__test as identityTest,accessTokenFromReque
 import {readJSON} from '../api/_security.mjs';
 import {BILLING_PLANS,__test as stripeTest,normalizeBillingPeriod,publicPlans,stripePriceFor,stripePriceMatchesOffer,stripeWebhookConfigured,verifyStripeSignature} from '../api/_stripe.mjs';
 import {__test as supabaseTest,supabaseAdminFetch} from '../api/_supabase.mjs';
-import {__test as onboardingTest} from '../server/routes/onboarding.mjs';
-import {__test as projectsTest} from '../server/routes/projects.mjs';
-import {__test as checkoutTest} from '../server/routes/billing-checkout.mjs';
+import {__test as onboardingTest} from '../api/onboarding.mjs';
+import {__test as projectsTest} from '../api/projects.mjs';
+import {__test as checkoutTest} from '../api/billing-checkout.mjs';
 import {__test as webhookTest} from '../api/billing-webhook.mjs';
-import {__test as clientAuthTest} from '../server/routes/client-auth.mjs';
-import {__test as routerTest} from '../api/router.mjs';
+import {__test as clientAuthTest} from '../api/client-auth.mjs';
 
 function withEnv(values,fn) {
   const previous={};
@@ -305,13 +304,4 @@ test('generation releases only the winning pre-Muse reservation',async()=>{
   assert.match(source,/reservationAttempted&&reservationOwned&&!requestStarted&&context/);
   assert.match(source,/release_generation_credit[^\n]+p_execution_id:executionId/);
   assert.doesNotMatch(source,/reservationAttempted&&!requestStarted&&authorizationId/);
-});
-
-test('client JSON routes share one Vercel function on the Hobby deployment',async()=>{
-  const config=JSON.parse(await readFile(new URL('../vercel.json',import.meta.url),'utf8'));
-  const routed=[...routerTest.ROUTES.keys()];
-  assert.equal(routed.length,11);
-  for(const route of routed)assert.ok(config.rewrites.some(rewrite=>rewrite.source===`/api/${route}`&&rewrite.destination===`/api/router?route=${route}`));
-  const directFunctions=['billing-webhook','catalogue','generate','history','hotspots-retry','hotspots','router','upload'];
-  assert.equal(directFunctions.length,8);assert.ok(directFunctions.length<=12);
 });

@@ -1,6 +1,6 @@
-import {hotspotDispatchConfigured} from '../../api/_hotspot-dispatch.mjs';
-import {requireIdentity} from '../../api/_identity.mjs';
-import {sendJSON} from '../../api/_security.mjs';
+import {hotspotDispatchConfigured} from './_hotspot-dispatch.mjs';
+import {requireIdentity} from './_identity.mjs';
+import {sendJSON} from './_security.mjs';
 
 export default async function handler(req,res) {
   if(req.method!=='GET')return sendJSON(res,405,{error:'Méthode non disponible.'});

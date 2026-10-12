@@ -1,7 +1,7 @@
-import {requireIdentity} from '../../api/_identity.mjs';
-import {readJSON,sameOrigin,sendJSON} from '../../api/_security.mjs';
-import {appBaseURL,safeReturnPath,stripeFetch} from '../../api/_stripe.mjs';
-import {supabaseUserFetch} from '../../api/_supabase.mjs';
+import {requireIdentity} from './_identity.mjs';
+import {readJSON,sameOrigin,sendJSON} from './_security.mjs';
+import {appBaseURL,safeReturnPath,stripeFetch} from './_stripe.mjs';
+import {supabaseUserFetch} from './_supabase.mjs';
 
 const first=value=>Array.isArray(value)?value[0]??null:value??null;
 

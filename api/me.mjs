@@ -1,6 +1,6 @@
-import {requireIdentity} from '../../api/_identity.mjs';
-import {sendJSON} from '../../api/_security.mjs';
-import {supabaseUserFetch} from '../../api/_supabase.mjs';
+import {requireIdentity} from './_identity.mjs';
+import {sendJSON} from './_security.mjs';
+import {supabaseUserFetch} from './_supabase.mjs';
 
 const first=value=>Array.isArray(value)?value[0]??null:value??null;
 const publicProject=value=>value&&typeof value==='object'?{...value,address:value.city??null}:value;
