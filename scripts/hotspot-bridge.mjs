@@ -6,7 +6,6 @@ import {mkdir,mkdtemp,readFile,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {basename,join,resolve} from 'node:path';
 import {promisify} from 'node:util';
-import {validateHotspotRecord} from '../api/_hotspot-record.mjs';
 
 const run=promisify(execFile),DEPLOY_ROOT=resolve(import.meta.dirname,'..'),LAB_ROOT=resolve(process.env.AURIMMO_LAB_ROOT||join(DEPLOY_ROOT,'../..'));
 const once=process.argv.includes('--once'),checkOnly=process.argv.includes('--check'),interval=Math.max(7000,Number(process.env.HOTSPOT_POLL_INTERVAL_MS)||15000);
@@ -44,9 +43,10 @@ function validateLocator(result,record,imageHash) {
 }
 
 async function processRun(pathname) {
-  const runId=basename(pathname,'.json'),record=await blobJSON(pathname),existing=await maybeBlobJSON(`hotspots/${runId}.json`,2*1024*1024);
-  if(validateHotspotRecord(existing,record).valid)return {run_id:runId,status:'already_completed'};
-  if(record?.schema_version!=='aurimmo.public.run.v2'||record.provider!=='muse'||!record?.run_id||basename(pathname,'.json')!==record.run_id||!Array.isArray(record.product_ids)||!/^results\/run-[a-zA-Z0-9-]{8,120}\.png$/.test(record.result_path||'')||!(/^[a-f0-9]{64}$/).test(record.output_sha256||''))throw new Error(`Trace de rendu invalide : ${pathname}`);
+  const runId=basename(pathname,'.json'),existing=await maybeBlobJSON(`hotspots/${runId}.json`,2*1024*1024);
+  if(existing?.run_id===runId)return {run_id:runId,status:'already_completed'};
+  const record=await blobJSON(pathname);
+  if(!record?.run_id||basename(pathname,'.json')!==record.run_id||!Array.isArray(record.product_ids)||!/^results\/run-[a-zA-Z0-9-]{8,120}\.png$/.test(record.result_path||''))throw new Error(`Trace de rendu invalide : ${pathname}`);
   const products=record.product_ids.map(id=>catalogueIndex.get(id));
   if(products.some(product=>!product))throw new Error(`Catalogue incomplet pour ${record.run_id}.`);
   const processing=await writeJob(record.run_id,'processing',{retryable:true});
@@ -61,13 +61,9 @@ async function processRun(pathname) {
     const completedAt=new Date().toISOString(),derived={schema_version:'aurimmo.public.hotspots.v1',status:'completed',run_id:record.run_id,selection_fingerprint:record.selection_fingerprint,
       product_ids:record.product_ids,result_path:record.result_path,image_sha256:imageHash,hotspots:located.hotspots,diagnostics:located.diagnostics,
       provenance:located.provenance??null,paid_api_calls:0,image_uploads:0,elapsed_seconds:located.elapsed_seconds??null,completed_at:completedAt};
-    if(!validateHotspotRecord(derived,record).valid)throw new Error(`Contrat de points incomplet : ${record.run_id}.`);
     await mkdir(traceDirectory,{recursive:true});await writeFile(join(traceDirectory,`${record.run_id}.json`),JSON.stringify(derived,null,2)+'\n',{mode:0o600});
-    const concurrent=await maybeBlobJSON(`hotspots/${record.run_id}.json`,2*1024*1024);
-    if(!validateHotspotRecord(concurrent,record).valid)
-      await put(`hotspots/${record.run_id}.json`,JSON.stringify(derived),{access:'private',contentType:'application/json',allowOverwrite:true});
-    const saved=await maybeBlobJSON(`hotspots/${record.run_id}.json`,2*1024*1024);
-    if(!validateHotspotRecord(saved,record).valid)throw new Error(`Enregistrement des points non confirmé : ${record.run_id}.`);
+    try {await put(`hotspots/${record.run_id}.json`,JSON.stringify(derived),{access:'private',contentType:'application/json',allowOverwrite:false});}
+    catch(error){const concurrent=await maybeBlobJSON(`hotspots/${record.run_id}.json`,2*1024*1024);if(concurrent?.run_id!==record.run_id)throw error;}
     await writeJob(record.run_id,'completed',{attempt:processing.attempt,retryable:false,completed_at:completedAt});
     console.log(JSON.stringify({run_id:record.run_id,status:'completed',hotspots:derived.hotspots.length,omitted:derived.diagnostics.length,paid_api_calls:0}));
     return derived;
@@ -76,12 +72,8 @@ async function processRun(pathname) {
 
 async function pendingRuns() {
   if(requestedRunId&&!RUN_ID.test(requestedRunId))throw new Error('Identifiant de rendu prioritaire invalide.');
-  const runs=await listAll('runs/'),pending=[];
-  for(const blob of runs) {
-    const runId=basename(blob.pathname,'.json'),record=await maybeBlobJSON(blob.pathname),hotspots=await maybeBlobJSON(`hotspots/${runId}.json`,2*1024*1024);
-    if(!validateHotspotRecord(hotspots,record).valid)pending.push(blob);
-  }
-  return pending.sort((a,b)=>{
+  const [runs,hotspots]=await Promise.all([listAll('runs/'),listAll('hotspots/')]),done=new Set(hotspots.map(blob=>basename(blob.pathname,'.json')));
+  return runs.filter(blob=>!done.has(basename(blob.pathname,'.json'))).sort((a,b)=>{
     const left=basename(a.pathname,'.json')===requestedRunId?0:1,right=basename(b.pathname,'.json')===requestedRunId?0:1;
     return left-right||a.uploadedAt-b.uploadedAt;
   });

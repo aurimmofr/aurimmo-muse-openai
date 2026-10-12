@@ -8,6 +8,3 @@ coverage/
 npm-debug.log*
 .vercel
 .env*
-.agents/
-skills-lock.json
-supabase/.temp/
