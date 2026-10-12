@@ -81,6 +81,12 @@ export async function supabaseAuthFetch(path,{method='POST',body,accessToken,fet
   return request(`${configured.url}/auth/v1/${safePath(path)}`,{method,headers,body,fetchImpl,timeoutMs});
 }
 
+export async function supabaseAdminAuthFetch(path,{method='POST',body,fetchImpl=fetch,timeoutMs}={}) {
+  const configured=assertConfigured({admin:true}),headers={apikey:configured.secretKey,'Content-Type':'application/json'};
+  if(!configured.secretKey.startsWith('sb_secret_'))headers.Authorization=`Bearer ${configured.secretKey}`;
+  return request(`${configured.url}/auth/v1/${safePath(path)}`,{method,headers,body,fetchImpl,timeoutMs});
+}
+
 export async function supabaseUserFetch(path,{method='GET',body,accessToken,headers:extraHeaders={},fetchImpl=fetch,timeoutMs}={}) {
   if(typeof accessToken!=='string'||accessToken.length<20)throw new SupabaseRequestError('Session client requise.',{status:401,code:'authentication_required'});
   const configured=assertConfigured(),headers={apikey:configured.publishableKey,Authorization:`Bearer ${accessToken}`,'Content-Type':'application/json',...extraHeaders};
