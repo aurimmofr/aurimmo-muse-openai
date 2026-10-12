@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import test from 'node:test';
-import {reconciliationRequest,resolveReconciliation,trustedAdminMutation,verifyStoredResult} from '../api/admin-reconciliations.mjs';
+import {reconciliationRequest,resolveReconciliation,trustedAdminMutation,verifyStoredResult} from '../server/routes/admin-reconciliations.mjs';
 
 const USER='11111111-1111-4111-8111-111111111111';
 const ADMIN='22222222-2222-4222-8222-222222222222';
@@ -111,7 +111,7 @@ test('closing without a usable result remains consumed and performs no blob or M
 test('migration and admin UI keep reconciliation service-only, immutable and audited',async()=>{
   const [sql,server,html,client,generator]=await Promise.all([
     readFile(new URL('../supabase/migrations/002_reconciliation_admin.sql',import.meta.url),'utf8'),
-    readFile(new URL('../api/admin-reconciliations.mjs',import.meta.url),'utf8'),
+    readFile(new URL('../server/routes/admin-reconciliations.mjs',import.meta.url),'utf8'),
     readFile(new URL('../public/admin.html',import.meta.url),'utf8'),
     readFile(new URL('../public/admin.js',import.meta.url),'utf8'),
     readFile(new URL('../api/generate.mjs',import.meta.url),'utf8'),

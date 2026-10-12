@@ -1,5 +1,5 @@
-import {sendJSON} from './_security.mjs';
-import {publicPlans,stripeConfigured,stripeWebhookConfigured} from './_stripe.mjs';
+import {sendJSON} from '../../api/_security.mjs';
+import {publicPlans,stripeConfigured,stripeWebhookConfigured} from '../../api/_stripe.mjs';
 
 export default function handler(req,res) {
   if(req.method!=='GET')return sendJSON(res,405,{error:'Méthode non disponible.'});

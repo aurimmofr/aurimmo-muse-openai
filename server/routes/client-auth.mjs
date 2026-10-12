@@ -1,7 +1,7 @@
 import {createHash} from 'node:crypto';
-import {accessTokenFromRequest,clearClientSession,normalizeEmail,readIdentity,refreshTokenFromRequest,setClientSession,validUUID} from './_identity.mjs';
-import {readJSON,sameOrigin,sendJSON} from './_security.mjs';
-import {SupabaseRequestError,supabaseAdminFetch,supabaseAdminRpc,supabaseAuthFetch} from './_supabase.mjs';
+import {accessTokenFromRequest,clearClientSession,normalizeEmail,readIdentity,refreshTokenFromRequest,setClientSession,validUUID} from '../../api/_identity.mjs';
+import {readJSON,sameOrigin,sendJSON} from '../../api/_security.mjs';
+import {SupabaseRequestError,supabaseAdminFetch,supabaseAdminRpc,supabaseAuthFetch} from '../../api/_supabase.mjs';
 
 const emailHash=email=>createHash('sha256').update(email).digest('hex');
 

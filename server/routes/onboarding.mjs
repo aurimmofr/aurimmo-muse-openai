@@ -1,6 +1,6 @@
-import {requireIdentity,validUUID} from './_identity.mjs';
-import {readJSON,sameOrigin,sendJSON} from './_security.mjs';
-import {supabaseUserRpc} from './_supabase.mjs';
+import {requireIdentity,validUUID} from '../../api/_identity.mjs';
+import {readJSON,sameOrigin,sendJSON} from '../../api/_security.mjs';
+import {supabaseUserRpc} from '../../api/_supabase.mjs';
 
 const clean=(value,max)=>typeof value==='string'?value.trim().slice(0,max):'';
 const PROPERTY_TYPES=new Map([

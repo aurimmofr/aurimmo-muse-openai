@@ -25,9 +25,9 @@ test('history publishes a run only when the database attempt, blob record and ow
 });
 
 test('existing private APIs use client identity and never enumerate legacy global runs',async()=>{
-  const names=['upload','history','hotspots','hotspots-retry','delete','catalogue','status'];
-  for(const name of names) {
-    const source=await readFile(new URL(`../api/${name}.mjs`,import.meta.url),'utf8');
+  const sources=['../api/upload.mjs','../api/history.mjs','../api/hotspots.mjs','../api/hotspots-retry.mjs','../server/routes/delete.mjs','../api/catalogue.mjs','../server/routes/status.mjs'];
+  for(const path of sources) {
+    const source=await readFile(new URL(path,import.meta.url),'utf8');
     assert.match(source,/requireIdentity/);
     assert.doesNotMatch(source,/requireAuth/);
   }
@@ -35,7 +35,7 @@ test('existing private APIs use client identity and never enumerate legacy globa
   assert.match(upload,/x-aurimmo-project-id/);assert.match(upload,/asset_id/);
   const history=await readFile(new URL('../api/history.mjs',import.meta.url),'utf8');
   assert.match(history,/listOwnedGenerationAttempts/);assert.doesNotMatch(history,/list\(\{prefix:'runs\/'/);
-  const status=await readFile(new URL('../api/status.mjs',import.meta.url),'utf8');
+  const status=await readFile(new URL('../server/routes/status.mjs',import.meta.url),'utf8');
   assert.doesNotMatch(status,/openai/i);assert.match(status,/muse/);
 });
 

@@ -1,6 +1,6 @@
-import {normalizeEmail,requireIdentity,validUUID} from './_identity.mjs';
-import {sendJSON} from './_security.mjs';
-import {supabaseAdminFetch} from './_supabase.mjs';
+import {normalizeEmail,requireIdentity,validUUID} from '../../api/_identity.mjs';
+import {sendJSON} from '../../api/_security.mjs';
+import {supabaseAdminFetch} from '../../api/_supabase.mjs';
 
 const PAGE_SIZE=500;
 const MAX_ROWS=10_000;

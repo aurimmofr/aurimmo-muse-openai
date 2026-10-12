@@ -1,8 +1,8 @@
-import {requireIdentity,validUUID} from './_identity.mjs';
-import {signedRead} from './_data.mjs';
-import {validClientRunId,validResultPath} from './_client-data.mjs';
-import {readJSON,sameOrigin,sendJSON} from './_security.mjs';
-import {supabaseUserFetch,supabaseUserRpc} from './_supabase.mjs';
+import {requireIdentity,validUUID} from '../../api/_identity.mjs';
+import {signedRead} from '../../api/_data.mjs';
+import {validClientRunId,validResultPath} from '../../api/_client-data.mjs';
+import {readJSON,sameOrigin,sendJSON} from '../../api/_security.mjs';
+import {supabaseUserFetch,supabaseUserRpc} from '../../api/_supabase.mjs';
 
 const PROPERTY_TYPES=new Map([['apartment','apartment'],['appartement','apartment'],['house','house'],['maison','house'],['studio','studio'],['other','other'],['autre','other']]);
 const clean=(value,max)=>typeof value==='string'?value.trim().slice(0,max):'';

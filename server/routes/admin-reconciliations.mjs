@@ -1,10 +1,10 @@
 import {get} from '@vercel/blob';
 import {createHash} from 'node:crypto';
 import {isAdminIdentity} from './admin-clients.mjs';
-import {inspectUploadedImage} from './_image.mjs';
-import {requireIdentity,validUUID} from './_identity.mjs';
-import {readJSON,sameOrigin,sendJSON} from './_security.mjs';
-import {SupabaseRequestError,supabaseAdminFetch,supabaseAdminRpc} from './_supabase.mjs';
+import {inspectUploadedImage} from '../../api/_image.mjs';
+import {requireIdentity,validUUID} from '../../api/_identity.mjs';
+import {readJSON,sameOrigin,sendJSON} from '../../api/_security.mjs';
+import {SupabaseRequestError,supabaseAdminFetch,supabaseAdminRpc} from '../../api/_supabase.mjs';
 
 const RUN_ID=/^run-[A-Za-z0-9-]{8,120}$/;
 const SHA256=/^[a-f0-9]{64}$/;

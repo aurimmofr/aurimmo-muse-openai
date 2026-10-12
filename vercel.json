@@ -19,6 +19,17 @@
     }
   },
   "rewrites": [
+    { "source": "/api/admin-clients", "destination": "/api/router?route=admin-clients" },
+    { "source": "/api/admin-reconciliations", "destination": "/api/router?route=admin-reconciliations" },
+    { "source": "/api/billing-checkout", "destination": "/api/router?route=billing-checkout" },
+    { "source": "/api/billing-plans", "destination": "/api/router?route=billing-plans" },
+    { "source": "/api/billing-portal", "destination": "/api/router?route=billing-portal" },
+    { "source": "/api/client-auth", "destination": "/api/router?route=client-auth" },
+    { "source": "/api/delete", "destination": "/api/router?route=delete" },
+    { "source": "/api/me", "destination": "/api/router?route=me" },
+    { "source": "/api/onboarding", "destination": "/api/router?route=onboarding" },
+    { "source": "/api/projects", "destination": "/api/router?route=projects" },
+    { "source": "/api/status", "destination": "/api/router?route=status" },
     { "source": "/", "destination": "/portal.html" }
   ],
   "headers": [

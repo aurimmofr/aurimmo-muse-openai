@@ -1,8 +1,8 @@
-import {requireIdentity,validUUID} from './_identity.mjs';
-import {readJSON,sameOrigin,sendJSON} from './_security.mjs';
-import {BILLING_PLANS,appBaseURL,safeReturnPath,stripeFetch,stripePriceFor,stripePriceMatchesOffer,stripeWebhookConfigured} from './_stripe.mjs';
-import {supabaseAdminFetch,supabaseAdminRpc,supabaseUserFetch} from './_supabase.mjs';
-import {fetchAndSyncSubscription} from './billing-webhook.mjs';
+import {requireIdentity,validUUID} from '../../api/_identity.mjs';
+import {readJSON,sameOrigin,sendJSON} from '../../api/_security.mjs';
+import {BILLING_PLANS,appBaseURL,safeReturnPath,stripeFetch,stripePriceFor,stripePriceMatchesOffer,stripeWebhookConfigured} from '../../api/_stripe.mjs';
+import {supabaseAdminFetch,supabaseAdminRpc,supabaseUserFetch} from '../../api/_supabase.mjs';
+import {fetchAndSyncSubscription} from '../../api/billing-webhook.mjs';
 
 const first=value=>Array.isArray(value)?value[0]??null:value??null;
 const CHECKOUT_SESSION=/^cs_(?:test|live)_[A-Za-z0-9]+$/;
