@@ -22,7 +22,8 @@ créer une nouvelle composition dérivée sans modifier l'original.
 
 - les clés API restent dans les variables d'environnement Vercel ;
 - le jeton du worker de points est limité à ce dépôt et à la permission GitHub Actions en écriture ;
-- les photos et résultats sont placés dans un stockage Vercel Blob privé ;
+- les photos et résultats sont placés dans un sous-compte WebDAV privé et isolé
+  du Storage Box Hetzner existant ;
 - une génération nécessite une session authentifiée et une confirmation explicite ;
 - chaque clic autorise un seul appel image, sans retry automatique ;
 - aucun ancien rendu, photo locale, historique ou fichier `.env` n'est versionné.
@@ -42,7 +43,7 @@ Variables requises : voir `.env.example`. La génération reste bloquée si
 
 Après chaque rendu, un worker GitHub Actions hébergé télécharge l'image privée,
 exécute Grounding DINO + SAM hors ligne puis enregistre uniquement les positions
-normalisées dans le Blob privé. Il n'appelle ni Muse ni OpenAI, n'envoie aucune
+normalisées dans le stockage privé. Il n'appelle ni Muse ni OpenAI, n'envoie aucune
 image à une API de vision et omet tout produit non localisé avec assez de confiance.
 Le serveur déclenche ce worker immédiatement après la sauvegarde de chaque rendu.
 Un balayage décalé toutes les cinq minutes réconcilie aussi toute tâche manquée ;
@@ -60,8 +61,11 @@ npm run hotspots:bridge  # surveiller les nouveaux rendus
 
 Ces commandes restent disponibles pour le développement, mais le site public ne
 dépend pas du Mac du laboratoire. Le workflow `.github/workflows/product-hotspots.yml`
-utilise le secret GitHub `BLOB_READ_WRITE_TOKEN`, les poids publics épinglés et un
-runner éphémère. Vercel conserve `GITHUB_HOTSPOT_TOKEN`, un jeton finement limité au
-seul dépôt avec `Actions: write`, uniquement pour lancer ce workflow. La fiche
+utilise les secrets `STORAGE_BOX_*` du sous-compte dédié, les poids publics épinglés
+et un runner éphémère. Vercel utilise le même sous-compte, crée des liens applicatifs
+signés sans exposer le mot de passe WebDAV au navigateur et conserve
+`GITHUB_HOTSPOT_TOKEN`, un jeton finement limité au seul dépôt avec `Actions: write`,
+uniquement pour lancer ce workflow. `OBJECT_STORAGE_PROVIDER=vercel-blob` reste un
+repli explicite. La fiche
 ouverte depuis un point et le panier restent locaux au
 navigateur ; aucun achat n'est connecté.

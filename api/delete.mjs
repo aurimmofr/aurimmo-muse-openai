@@ -1,6 +1,6 @@
-import { del,list } from '@vercel/blob';
 import { privateJSON } from './_data.mjs';
 import { readJSON, requireAuth, sameOrigin, sendJSON } from './_security.mjs';
+import {del,list} from './_storage.mjs';
 
 export function validPrivatePath(value) {
   return typeof value==='string'&&/^(uploads|results)\/[a-zA-Z0-9._-]+$/.test(value);

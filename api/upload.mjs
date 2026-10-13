@@ -1,6 +1,6 @@
-import { put } from '@vercel/blob';
 import { randomUUID } from 'node:crypto';
 import { requireAuth, sameOrigin, sendJSON } from './_security.mjs';
+import {put} from './_storage.mjs';
 
 const MAX_BYTES=3_700_000;
 const TYPES=new Map([['image/jpeg','jpg'],['image/png','png'],['image/webp','webp']]);

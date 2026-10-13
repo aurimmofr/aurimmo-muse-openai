@@ -1,5 +1,5 @@
-import {get,issueSignedToken,presignUrl} from '@vercel/blob';
 import {readFile} from 'node:fs/promises';
+import {get,signedRead as storageSignedRead} from './_storage.mjs';
 
 let catalogueCache;
 
@@ -18,9 +18,7 @@ export async function privateJSON(pathname,maxBytes=512*1024) {
 }
 
 export async function signedRead(pathname) {
-  const validUntil=Date.now()+60*60*1000;
-  const token=await issueSignedToken({pathname,operations:['get'],validUntil});
-  return (await presignUrl(token,{access:'private',pathname,operation:'get',validUntil})).presignedUrl;
+  return storageSignedRead(pathname,{validForSeconds:60*60});
 }
 
 export const validRunId=value=>typeof value==='string'&&/^run-[a-zA-Z0-9-]{8,120}$/.test(value);

@@ -1,8 +1,8 @@
-import { get, issueSignedToken, presignUrl, put } from '@vercel/blob';
 import { createHash, randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import {dispatchHotspotWorker,preflightHotspotWorker} from './_hotspot-dispatch.mjs';
 import { readJSON, requireAuth, requestId, sameOrigin, sendJSON } from './_security.mjs';
+import {get,put,signedRead} from './_storage.mjs';
 
 const PROGRAMS=new Set(['living_conversation','living_reading','living_tv','living_dining']);
 const PROVIDERS=new Set(['openai','muse']);
@@ -99,12 +99,6 @@ async function providerCall(provider,prompt,images,body) {
   let payload;try{payload=await response.json();}catch{throw Object.assign(new Error('Réponse fournisseur illisible ; facturation à rapprocher.'),{status:502,ambiguous:true});}
   if(!response.ok)throw Object.assign(new Error(`Erreur ${response.status} du fournisseur ; aucun retry automatique.`),{status:502,ambiguous:true,provider_status:response.status});
   return {bytes:strictImage(payload),usage:payload.usage??null,request_id:response.headers.get('x-request-id')??response.headers.get('request-id')??null,elapsed_ms:Date.now()-started};
-}
-
-async function signedRead(pathname) {
-  const validUntil=Date.now()+60*60*1000;
-  const token=await issueSignedToken({pathname,operations:['get'],validUntil});
-  return (await presignUrl(token,{access:'private',pathname,operation:'get',validUntil})).presignedUrl;
 }
 
 export const __test={canonicalSelection,promptFor,validateBody,sha};

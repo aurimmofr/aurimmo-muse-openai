@@ -1,7 +1,7 @@
-import {put} from '@vercel/blob';
 import {privateJSON,validRunId} from './_data.mjs';
 import {dispatchHotspotWorker} from './_hotspot-dispatch.mjs';
 import {readJSON,requireAuth,sameOrigin,sendJSON} from './_security.mjs';
+import {put} from './_storage.mjs';
 
 export default async function handler(req,res) {
   if(req.method!=='POST')return sendJSON(res,405,{error:'Méthode non disponible.'});

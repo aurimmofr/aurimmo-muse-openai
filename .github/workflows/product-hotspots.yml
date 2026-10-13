@@ -24,7 +24,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
-      BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+      OBJECT_STORAGE_PROVIDER: hetzner-storage-box
+      STORAGE_BOX_ENDPOINT: ${{ secrets.STORAGE_BOX_ENDPOINT }}
+      STORAGE_BOX_USERNAME: ${{ secrets.STORAGE_BOX_USERNAME }}
+      STORAGE_BOX_PASSWORD: ${{ secrets.STORAGE_BOX_PASSWORD }}
       AURIMMO_LAB_ROOT: ${{ github.workspace }}
       HOTSPOT_RUN_ID: ${{ github.event.inputs.run_id || '' }}
     steps:

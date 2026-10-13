@@ -1,6 +1,6 @@
-import {list} from '@vercel/blob';
 import {publicCatalogue,privateJSON,signedRead,validRunId} from './_data.mjs';
 import {requireAuth,sendJSON} from './_security.mjs';
+import {list} from './_storage.mjs';
 
 export default async function handler(req,res) {
   if(req.method!=='GET')return sendJSON(res,405,{error:'Méthode non disponible.'});

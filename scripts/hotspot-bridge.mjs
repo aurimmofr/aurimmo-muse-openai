@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-import {get,list,put} from '@vercel/blob';
 import {createHash} from 'node:crypto';
 import {execFile} from 'node:child_process';
 import {mkdir,mkdtemp,readFile,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {basename,join,resolve} from 'node:path';
 import {promisify} from 'node:util';
+import {get,list,put} from '../api/_storage.mjs';
 
 const run=promisify(execFile),DEPLOY_ROOT=resolve(import.meta.dirname,'..'),LAB_ROOT=resolve(process.env.AURIMMO_LAB_ROOT||join(DEPLOY_ROOT,'../..'));
 const once=process.argv.includes('--once'),checkOnly=process.argv.includes('--check'),interval=Math.max(7000,Number(process.env.HOTSPOT_POLL_INTERVAL_MS)||15000);

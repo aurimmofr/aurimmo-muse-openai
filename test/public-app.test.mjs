@@ -119,6 +119,7 @@ test('hotspot dispatch rejects invalid ids and preflights the active workflow be
 test('hosted hotspot workflow has immediate dispatch, staggered reconciliation and explicit failures',async()=>{
   const workflow=await readFile(new URL('../.github/workflows/product-hotspots.yml',import.meta.url),'utf8');
   assert.match(workflow,/workflow_dispatch:[\s\S]*run_id:/);assert.match(workflow,/3,8,13,18,23,28,33,38,43,48,53,58/);assert.doesNotMatch(workflow,/push:[\s\S]{0,100}paths:/);
+  assert.match(workflow,/OBJECT_STORAGE_PROVIDER: hetzner-storage-box/);assert.match(workflow,/secrets\.STORAGE_BOX_PASSWORD/);
   const worker=await readFile(new URL('../scripts/hotspot-bridge.mjs',import.meta.url),'utf8');
   assert.match(worker,/hotspot-jobs/);assert.match(worker,/processing/);assert.match(worker,/failed/);assert.match(worker,/page\.hasMore/);assert.match(worker,/throw new Error\(`Repérage échoué/);
   const app=await readFile(new URL('../public/app.js',import.meta.url),'utf8');assert.match(app,/\/api\/hotspots-retry/);assert.match(app,/hotspotWorkerReady/);assert.match(app,/\['queued','pending','processing'\]/);

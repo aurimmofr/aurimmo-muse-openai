@@ -11,6 +11,9 @@
     "api/history.mjs": {
       "includeFiles": "public/catalogue.json"
     },
+    "api/media.mjs": {
+      "maxDuration": 60
+    },
     "api/hotspots.mjs": {
       "includeFiles": "public/catalogue.json"
     },
