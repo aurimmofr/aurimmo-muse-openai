@@ -43,7 +43,16 @@ jobs:
       - name: Check for rendered images awaiting product points
         id: pending
         shell: bash
-        run: echo "count=$(node scripts/hotspot-bridge.mjs --check)" >> "$GITHUB_OUTPUT"
+        run: |
+          if ! count="$(node scripts/hotspot-bridge.mjs --check)"; then
+            echo "Private storage check failed." >&2
+            exit 1
+          fi
+          if [[ ! "$count" =~ ^[0-9]+$ ]]; then
+            echo "Private storage check returned an invalid count." >&2
+            exit 1
+          fi
+          echo "count=$count" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-python@v5
         if: steps.pending.outputs.count != '0'
