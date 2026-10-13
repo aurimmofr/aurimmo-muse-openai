@@ -3,6 +3,9 @@ import {authenticated} from './_security.mjs';
 import {openRead,verifyMediaSignature} from './_storage.mjs';
 
 function query(req,name) {
+  const direct=req?.query?.[name];
+  if(typeof direct==='string')return direct;
+  if(Array.isArray(direct)&&typeof direct[0]==='string')return direct[0];
   try{return new URL(req.url,'https://aurimmo.local').searchParams.get(name);}catch{return null;}
 }
 

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {storageBoxConfiguration,storageProvider,verifyMediaSignature,__test} from '../api/_storage.mjs';
-import {mediaAccessAllowed} from '../api/media.mjs';
+import {mediaAccessAllowed,__test as mediaTest} from '../api/media.mjs';
 
 test('storage provider is explicit and otherwise keeps the legacy backend',()=>{
   assert.equal(storageProvider({OBJECT_STORAGE_PROVIDER:'hetzner-storage-box'}),'hetzner-storage-box');
@@ -37,4 +37,11 @@ test('private media also accepts the authenticated same-origin session',()=>{
   const now=1_800_000_000,env={OBJECT_STORAGE_PROVIDER:'hetzner-storage-box',MEDIA_URL_SIGNING_SECRET:'x'.repeat(32)};
   assert.equal(mediaAccessAllowed('results/run-12345678.png',now-60,'invalid',{isAuthenticated:false,now,env}),false);
   assert.equal(mediaAccessAllowed('results/run-12345678.png',now-60,'invalid',{isAuthenticated:true,now,env}),true);
+});
+
+test('media parameters use the Vercel query object when req.url omits its search',()=>{
+  const req={url:'/api/media',query:{path:'results/run-12345678.png',expires:['1800003600'],signature:'a'.repeat(64)}};
+  assert.equal(mediaTest.query(req,'path'),'results/run-12345678.png');
+  assert.equal(mediaTest.query(req,'expires'),'1800003600');
+  assert.equal(mediaTest.query(req,'signature'),'a'.repeat(64));
 });
