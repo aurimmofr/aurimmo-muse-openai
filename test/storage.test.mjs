@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {storageBoxConfiguration,storageProvider,verifyMediaSignature,__test} from '../api/_storage.mjs';
+import {mediaAccessAllowed} from '../api/media.mjs';
 
 test('storage provider is explicit and otherwise keeps the legacy backend',()=>{
   assert.equal(storageProvider({OBJECT_STORAGE_PROVIDER:'hetzner-storage-box'}),'hetzner-storage-box');
@@ -30,4 +31,10 @@ test('signed media links are scoped to provider and expire within 24 hours',()=>
   assert.equal(verifyMediaSignature('results/run-other.png',expires,signature,{now,env}),false);
   assert.equal(verifyMediaSignature('../private',expires,signature,{now,env}),false);
   assert.equal(verifyMediaSignature('results/run-12345678.png',now+24*60*60+61,signature,{now,env}),false);
+});
+
+test('private media also accepts the authenticated same-origin session',()=>{
+  const now=1_800_000_000,env={OBJECT_STORAGE_PROVIDER:'hetzner-storage-box',MEDIA_URL_SIGNING_SECRET:'x'.repeat(32)};
+  assert.equal(mediaAccessAllowed('results/run-12345678.png',now-60,'invalid',{isAuthenticated:false,now,env}),false);
+  assert.equal(mediaAccessAllowed('results/run-12345678.png',now-60,'invalid',{isAuthenticated:true,now,env}),true);
 });

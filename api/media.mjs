@@ -1,15 +1,25 @@
 import {Readable} from 'node:stream';
+import {authenticated} from './_security.mjs';
 import {openRead,verifyMediaSignature} from './_storage.mjs';
 
 function query(req,name) {
   try{return new URL(req.url,'https://aurimmo.local').searchParams.get(name);}catch{return null;}
 }
 
+export function mediaAccessAllowed(pathname,expires,signature,{isAuthenticated=false,now,env}={}) {
+  if(isAuthenticated)return true;
+  try{return verifyMediaSignature(pathname,expires,signature,{...(now===undefined?{}:{now}),...(env===undefined?{}:{env})});}
+  catch{return false;}
+}
+
 export default async function handler(req,res) {
   if(!['GET','HEAD'].includes(req.method)) {res.statusCode=405;res.setHeader('Allow','GET, HEAD');return res.end();}
   const pathname=query(req,'path'),expires=query(req,'expires'),signature=query(req,'signature');
   try {
-    if(!verifyMediaSignature(pathname,expires,signature)) {res.statusCode=403;return res.end();}
+    // Signed links remain usable outside the app. Inside the authenticated app,
+    // the same-origin session is an equally private fallback if a rotated or
+    // differently provisioned signing secret invalidates an otherwise valid URL.
+    if(!mediaAccessAllowed(pathname,expires,signature,{isAuthenticated:authenticated(req)})) {res.statusCode=403;return res.end();}
     const object=await openRead(pathname);
     if(!object||object.statusCode!==200) {res.statusCode=404;return res.end();}
     res.statusCode=200;
