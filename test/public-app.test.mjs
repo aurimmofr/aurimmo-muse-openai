@@ -26,7 +26,7 @@ test('public catalogue contains the complete eligible Salon/Japandi library',()=
 
 test('exact frozen selection fingerprint is deterministic and provider independent',()=>{
   const products=[catalogue.products.find(x=>x.role==='sofa'),catalogue.products.find(x=>x.role==='rug'),catalogue.products.find(x=>x.role==='floor_lamp')];
-  const body={program:'living_conversation',include_tv:false,surfaces:{floor:'preserve',walls:'preserve'}};
+  const body={program:'living_dining',include_tv:false,surfaces:{floor:'preserve',walls:'preserve'}};
   const first=__test.sha(__test.canonicalSelection(body,products));
   const second=__test.sha(__test.canonicalSelection({...body,provider:'muse'},products));
   assert.equal(first,second);
@@ -35,12 +35,15 @@ test('exact frozen selection fingerprint is deterministic and provider independe
 
 test('generation validation requires one explicit confirmation and an exact selection',()=>{
   process.env.GENERATION_ENABLED='true';
-  const products=['sofa','armchair','coffee_table','rug','floor_lamp','decorative_object'].map(role=>catalogue.products.find(x=>x.role===role&&x.selection_status!=='historical_run_only'));
+  const products=['sofa','coffee_table','rug','dining_table','dining_chair','pendant'].map(role=>catalogue.products.find(x=>x.role===role&&x.selection_status!=='historical_run_only'));
   const index=new Map(products.map(product=>[product.catalog_id,product]));
-  const base={provider:'openai',program:'living_conversation',include_tv:false,surfaces:{floor:'preserve',walls:'preserve'},room_path:'uploads/photo.jpg',width:1200,height:800,
+  const base={provider:'muse',program:'living_dining',include_tv:false,surfaces:{floor:'preserve',walls:'preserve'},room_path:'uploads/photo.jpg',width:1200,height:800,
     product_ids:products.map(x=>x.catalog_id),authorization_id:'11111111-1111-4111-8111-111111111111',confirm_paid_generation:true};
   base.selection_fingerprint=__test.sha(__test.canonicalSelection(base,products));
   assert.deepEqual(__test.validateBody(base,index),products);
+  assert.throws(()=>__test.validateBody({...base,provider:'openai'},index),/Moteur, programme/);
+  assert.throws(()=>__test.validateBody({...base,program:'living_reading'},index),/Moteur, programme/);
+  assert.throws(()=>__test.validateBody({...base,program:'living_conversation'},index),/Moteur, programme/);
   assert.throws(()=>__test.validateBody({...base,confirm_paid_generation:false},index),/Confirmation payante/);
   assert.throws(()=>__test.validateBody({...base,selection_fingerprint:'0'.repeat(64)},index),/sélection figée/);
   const incomplete={...base,product_ids:base.product_ids.slice(0,-1)};incomplete.selection_fingerprint=__test.sha(__test.canonicalSelection(incomplete,products.slice(0,-1)));
@@ -49,7 +52,7 @@ test('generation validation requires one explicit confirmation and an exact sele
 
 test('prompt protects source architecture, fixed elements and merchant backgrounds',()=>{
   const products=[catalogue.products.find(x=>x.role==='sofa'),catalogue.products.find(x=>x.role==='rug'),catalogue.products.find(x=>x.role==='floor_lamp')];
-  const prompt=__test.promptFor({program:'living_conversation',include_tv:false,surfaces:{floor:'preserve',walls:'replace'}},products);
+  const prompt=__test.promptFor({program:'living_dining',include_tv:false,surfaces:{floor:'preserve',walls:'replace'}},products);
   assert.match(prompt,/MÊME PIÈCE EXACTE/);
   assert.match(prompt,/ARCHITECTURE — ZÉRO CHANGEMENT DE GÉOMÉTRIE — PRIORITÉ ABSOLUE/);
   assert.match(prompt,/exactement la même position de caméra/);
@@ -75,7 +78,7 @@ test('prompt protects source architecture, fixed elements and merchant backgroun
 
 test('surface replacement changes appearance only, never room geometry',()=>{
   const products=[catalogue.products.find(x=>x.role==='sofa'),catalogue.products.find(x=>x.role==='floor_finish'),catalogue.products.find(x=>x.role==='wall_finish')];
-  const prompt=__test.promptFor({program:'living_conversation',include_tv:false,surfaces:{floor:'replace',walls:'replace'}},products);
+  const prompt=__test.promptFor({program:'living_dining',include_tv:false,surfaces:{floor:'replace',walls:'replace'}},products);
   assert.match(prompt,/SOL — APPARENCE SEULEMENT/);
   assert.match(prompt,/MURS — FINITION SEULEMENT/);
   assert.match(prompt,/change uniquement l'apparence/);
@@ -83,17 +86,15 @@ test('surface replacement changes appearance only, never room geometry',()=>{
 });
 
 test('Muse request uses the documented private-tool keys from the 58-photo regression contract',()=>{
-  const request=__test.providerRequest('muse','prompt',[{image_url:'data:image/jpeg;base64,AA=='}],{width:1200,height:800});
+  const request=__test.providerRequest('prompt',[{image_url:'data:image/jpeg;base64,AA=='}],{width:1200,height:800});
   assert.deepEqual(request.tool_enablement,{enable_image_search:false,enable_web_search:false,enable_shell:false});
   assert.equal(request.reasoning_strength,'high');
   assert.equal(request.size,'1200x800');
   assert.equal(Object.hasOwn(request.tool_enablement,'image_search'),false);
 });
 
-test('all five programmes and four surface policies keep the complete architecture contract',()=>{
+test('both active programmes and four surface policies keep the complete architecture contract',()=>{
   const programmes=[
-    {program:'living_conversation',include_tv:false},
-    {program:'living_reading',include_tv:false},
     {program:'living_tv',include_tv:false},
     {program:'living_dining',include_tv:false},
     {program:'living_dining',include_tv:true},
@@ -115,7 +116,7 @@ test('public source never contains local secrets or paid result data',async()=>{
   const files=['../public/index.html','../public/app.js','../api/generate.mjs','../README.md'];
   for(const relative of files){const text=await readFile(new URL(relative,import.meta.url),'utf8');assert.doesNotMatch(text,/sk-[A-Za-z0-9_-]{20,}|BFL_API_KEY=/);}
   const html=await readFile(new URL('../public/index.html',import.meta.url),'utf8');
-  assert.match(html,/OpenAI Image/);assert.match(html,/Muse Image/);assert.doesNotMatch(html,/Flux 3/);
+  assert.doesNotMatch(html,/OpenAI Image/);assert.match(html,/Muse Image/);assert.doesNotMatch(html,/Flux 3/);
 });
 
 test('the public page preserves the Aurimmo photo workflow and original stylesheet',async()=>{
@@ -127,8 +128,7 @@ test('the public page preserves the Aurimmo photo workflow and original styleshe
   assert.match(html,/id="camera-button"[^>]*>[\s\S]*?Prendre une photo/);
   assert.match(html,/id="upload-button"[^>]*>[\s\S]*?Télécharger une image/);
   assert.match(html,/id="programme-cards"/);
-  assert.match(html,/data-image-provider="openai"/);
-  assert.match(html,/data-image-provider="muse"/);
+  assert.doesNotMatch(html,/data-image-provider=/);
   const app=await readFile(new URL('../public/app.js',import.meta.url),'utf8');
   assert.ok(app.includes("$('#camera-button').addEventListener('click',()=>$('#camera-file').click());"));
   assert.ok(app.includes("$('#upload-button').addEventListener('click',()=>$('#room-file').click());"));

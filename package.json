@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Comparateur Aurimmo protégé : Muse Image et OpenAI Image",
+  "description": "Aurimmo Intérieur Lab protégé : génération Muse Image",
   "engines": {
     "node": ">=22"
   },

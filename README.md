@@ -1,22 +1,25 @@
-# Aurimmo — comparaison Muse / OpenAI
+# Aurimmo — Intérieur Lab avec Muse
 
-Application Vercel protégée par mot de passe pour comparer un rendu **Muse
-Image** et un rendu **OpenAI Image** à partir de la même photo, du même programme,
-des mêmes surfaces et de la même sélection catalogue figée.
+Application Vercel protégée par mot de passe pour transformer une photo de salon
+en rendu Japandi avec **Muse Image**, les surfaces choisies et les produits du catalogue.
 
 L'interface reprend le laboratoire Aurimmo existant : identité visuelle et CSS,
-prise ou ajout de photo, quatre programmes, choix indépendants du sol et des murs,
-cartes produits, panier local, carnet d'essai et comparaison côte à côte. Elle
+prise ou ajout de photo, deux programmes (Salon avec TV et Salon + repas), choix
+indépendants du sol et des murs, cartes produits, panier local et carnet d'essai. Elle
 embarque les 4 192 références Salon/Japandi actives du catalogue local et garde
 séparément les références exactes nécessaires à la lecture des anciens rendus.
 
 Chaque nouvelle composition et chaque nouvelle génération tire aléatoirement une
 référence active pour chaque rôle du programme. Une référence peut être remplacée
-gratuitement depuis sa carte ou depuis son rond sur un ancien rendu. Le changement
-de moteur conserve exceptionnellement la sélection figée afin que la comparaison
-Muse / OpenAI porte bien sur les mêmes produits. Un rendu historique, sa photo
+gratuitement depuis sa carte ou depuis son rond sur un ancien rendu. Un rendu historique, sa photo
 source et ses points restent immuables ; un collègue connecté peut les rouvrir et
 créer une nouvelle composition dérivée sans modifier l'original.
+
+L'API de génération accepte uniquement Muse et les deux programmes actifs. Les
+anciens rendus OpenAI et les anciens programmes restent lisibles dans l'historique,
+sans permettre une nouvelle génération avec ces options. Le contrat de prompt
+protège toujours architecture, ouvertures, escaliers, poêle, cuisine intégrée,
+installations fixes et point de vue.
 
 ## Sécurité
 
@@ -43,7 +46,7 @@ Variables requises : voir `.env.example`. La génération reste bloquée si
 
 Après chaque rendu, un worker GitHub Actions hébergé télécharge l'image privée,
 exécute Grounding DINO + SAM hors ligne puis enregistre uniquement les positions
-normalisées dans le stockage privé. Il n'appelle ni Muse ni OpenAI, n'envoie aucune
+normalisées dans le stockage privé. Il n'appelle pas Muse et n'envoie aucune
 image à une API de vision et omet tout produit non localisé avec assez de confiance.
 Le serveur déclenche ce worker immédiatement après la sauvegarde de chaque rendu.
 Un balayage décalé toutes les cinq minutes réconcilie aussi toute tâche manquée ;
@@ -51,7 +54,7 @@ l'interface expose les états en file, en cours, terminé ou en nouvelle tentati
 et propose une relance idempotente limitée aux points. Une génération payante est
 bloquée avant le fournisseur si le déclencheur de points n'est pas configuré ou
 si le workflow GitHub n'est pas actif. Les ronds sont visibles dans l'onglet du résultat,
-jamais sur la photo originale ni dans la vue de comparaison. Un produit ambigu ou
+jamais sur la photo originale. Un produit ambigu ou
 non localisé est volontairement omis plutôt que placé approximativement.
 
 ```sh

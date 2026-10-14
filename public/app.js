@@ -4,15 +4,13 @@ const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
 
 const PROGRAMMES = [
-  {id:'living_conversation',title:'Salon de conversation',description:'Un salon convivial organisé autour des échanges, sans télévision.'},
-  {id:'living_reading',title:'Coin lecture',description:'Un espace calme avec fauteuil, éclairage et rangements, sans télévision.'},
   {id:'living_tv',title:'Salon avec TV',description:'Des assises orientées vers une télévision générique et un meuble TV catalogue.'},
   {id:'living_dining',title:'Salon + repas',description:'Deux fonctions lisibles et une circulation préservée dans la même pièce.'},
 ];
 
+const LEGACY_PROGRAMMES = {living_conversation:'Salon de conversation',living_reading:'Coin lecture'};
+
 const PLANS = {
-  living_conversation:['sofa','armchair','coffee_table','rug','floor_lamp','decorative_object'],
-  living_reading:['armchair','side_table','floor_lamp','rug','bookcase','table_lamp'],
   living_tv:['sofa','armchair','coffee_table','rug','floor_lamp','tv_unit'],
   living_dining:['sofa','coffee_table','rug','dining_table','dining_chair','pendant'],
 };
@@ -34,10 +32,10 @@ function savedCart() {
 }
 
 const state = {
-  catalogue:[], catalogueRoles:[], catalogueActiveTotal:0, catalogueHistoricalTotal:0, providers:{}, generationEnabled:false, hotspotWorkerReady:false, provider:'openai', programme:null, includeTV:false,
+  catalogue:[], catalogueRoles:[], catalogueActiveTotal:0, catalogueHistoricalTotal:0, providers:{}, generationEnabled:false, hotspotWorkerReady:false, provider:'muse', programme:null, includeTV:false,
   surfaces:{floor:'preserve',walls:'preserve'}, forcedByRole:{}, selection:[], fingerprint:null, selectionOrigin:null, compositionVersion:0,
   photoPath:null, photoURL:null, photoName:null, width:null, height:null, photoDeletable:false,
-  results:{}, history:[], view:'original', compare:false, busy:false, initialized:false, cart:savedCart(),
+  results:{}, history:[], view:'original', busy:false, initialized:false, cart:savedCart(),
   explorer:{query:'',role:'',page:0,limit:18},hotspots:new Map(),hotspotVisible:true,hotspotTimer:null,hotspotPollingRun:null,historyOpenToken:0,
 };
 
@@ -56,8 +54,8 @@ function node(tag,className,text) {
   return element;
 }
 
-function providerLabel(provider=state.provider) { return provider==='muse'?'Muse Image':'OpenAI Image'; }
-function programmeLabel(programme=state.programme) { return PROGRAMMES.find(item=>item.id===programme)?.title||'Aménagement non choisi'; }
+function providerLabel(provider=state.provider) { return provider==='openai'?'Ancien rendu OpenAI':'Muse Image'; }
+function programmeLabel(programme=state.programme) { return PROGRAMMES.find(item=>item.id===programme)?.title||LEGACY_PROGRAMMES[programme]||'Aménagement non choisi'; }
 
 function money(product) {
   if(!Number.isFinite(product?.price))return 'Prix non certifié';
@@ -90,12 +88,8 @@ function hideUnsupportedControls() {
   composition.querySelector('span').textContent='Proposer une autre composition';
   composition.querySelector('small').textContent='Local · gratuit';
   composition.nextElementSibling.textContent='Une autre composition tire de nouvelles références actives au hasard et conserve tous vos réglages.';
-  $('#history-case-label').textContent='Rendus de cette session protégée';
-  $('#history .eyebrow').textContent='HISTORIQUE PARTAGÉ';
   $('#history-all').closest('label').classList.add('hidden');
-  $('#case-description').textContent='La photo reste privée. L’import ne lance aucun moteur d’image.';
-  const technicalParagraphs=$$('.technical-details p');
-  if(technicalParagraphs[0])technicalParagraphs[0].textContent='L’import et les réglages restent gratuits. Une nouvelle composition utilise un tirage aléatoire de références actives, modifiable avant un nouveau rendu. Chaque clic de génération autorise une seule image, sans relance automatique ; la comparaison Muse/OpenAI réutilise exceptionnellement la même composition figée.';
+  $('#case-description').textContent='Votre photo reste privée.';
 }
 
 function createAuthOverlay(message='') {
@@ -104,12 +98,12 @@ function createAuthOverlay(message='') {
   overlay=node('div','public-auth-overlay');overlay.id='public-auth-overlay';
   const card=node('form','public-auth-card');card.id='public-auth-form';
   const eyebrow=node('p','eyebrow','ACCÈS PROTÉGÉ');
-  const title=node('h2','', 'Aurimmo Intérieur Lab');
-  const copy=node('p','', 'Saisissez le mot de passe pour retrouver l’outil complet et comparer Muse à OpenAI.');
+  const title=node('h2','', 'Aurimmo Intérieur');
+  const copy=node('p','', 'Saisissez le mot de passe pour accéder à vos photos et rendus.');
   const label=node('label','', 'Mot de passe');
   const input=node('input');input.id='public-password';input.type='password';input.minLength=10;input.required=true;input.autocomplete='current-password';
   const error=node('p','public-auth-error',message);error.id='public-auth-error';error.setAttribute('role','alert');
-  const button=node('button','button button-primary','Ouvrir le laboratoire');button.type='submit';
+  const button=node('button','button button-primary','Ouvrir mon espace');button.type='submit';
   label.append(input);card.append(eyebrow,title,copy,label,error,button);overlay.append(card);document.body.append(overlay);
   card.addEventListener('submit',async event=>{
     event.preventDefault();error.textContent='';button.disabled=true;button.textContent='Vérification…';
@@ -117,7 +111,7 @@ function createAuthOverlay(message='') {
       await api('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:input.value})});
       overlay.remove();await initialize();
     } catch(authError) { error.textContent=authError.message;input.select(); }
-    finally { button.disabled=false;button.textContent='Ouvrir le laboratoire'; }
+    finally { button.disabled=false;button.textContent='Ouvrir mon espace'; }
   });
   queueMicrotask(()=>input.focus());return overlay;
 }
@@ -147,11 +141,11 @@ function renderProgrammes() {
     }
     radio.addEventListener('change',async()=>{
       state.programme=programme.id;state.includeTV=false;await prepareRandomSelection();renderProgrammes();renderCatalogueExplorer();
-      $('#programme-message').textContent='Programme enregistré. Une sélection aléatoire active est prête gratuitement et reste modifiable.';
+      $('#programme-message').textContent='Aménagement choisi.';
     });
     container.append(label);
   }
-  $('#programme-summary').textContent=state.programme?`${programmeLabel()} · style Japandi · ${state.includeTV?'avec télévision générique':'sans télévision ajoutée'}.`:'Choisissez un aménagement avant de générer.';
+  $('#programme-summary').textContent=state.programme?`${programmeLabel()} · Japandi${state.programme==='living_tv'||state.includeTV?' · avec TV':''}.`:'Choisissez un aménagement avant de générer.';
 }
 
 function requiredRoles() {
@@ -174,7 +168,7 @@ async function rebuildSelection({clearResults=true,randomize=false,avoidSelectio
   const canonical=JSON.stringify({program:state.programme,include_tv:Boolean(state.includeTV),surfaces:state.surfaces,
     products:state.selection.map(product=>({catalog_id:product.catalog_id,role:product.role,quantity:product.quantity}))});
   state.fingerprint=await digest(canonical);
-  if(clearResults){state.results={};state.compare=false;state.view='original';}
+  if(clearResults){state.results={};state.view='original';}
   renderProducts();renderResults();updateInterface();
 }
 
@@ -220,7 +214,7 @@ function renderProducts() {
   else for(const product of state.selection)container.append(productCard(product));
   $('#product-count').textContent=`${state.selection.length} référence${state.selection.length>1?'s':''}`;
   const origin=state.selectionOrigin==='history'?'Composition d’un rendu existant':state.selectionOrigin==='edited'?'Composition personnalisée':`Composition aléatoire n°${Math.max(1,state.compositionVersion)}`;
-  $('#catalogue-intro').textContent=state.selection.length?`${origin} · ${state.selection.length} références figées pour ${programmeLabel().toLowerCase()}. Chaque produit peut être remplacé ; une comparaison Muse/OpenAI conserve exactement cette version.`:'Les produits apparaîtront après le choix de l’aménagement.';
+  $('#catalogue-intro').textContent=state.selection.length?`${origin} · ${state.selection.length} produits sélectionnés.`:'Les produits apparaîtront après le choix de l’aménagement.';
   const finishes=state.selection.filter(product=>['floor_finish','wall_finish'].includes(product.role));
   const panel=$('#surface-plan-panel');panel.classList.toggle('hidden',!finishes.length);
   $('#surface-plan-details').replaceChildren(...finishes.map(product=>node('p','',`${ROLE_LABELS[product.role]} : ${product.product_name} · ${product.retailer}`)));
@@ -273,8 +267,8 @@ function explorerCard(product) {
 
 function renderCatalogueExplorer() {
   const section=$('#catalogue-explorer-section');section.classList.remove('hidden');
-  $('#catalogue-explorer-title').textContent=`Explorer les ${state.catalogueActiveTotal.toLocaleString('fr-FR')} références actives Salon / Japandi`;
-  $('#explorer-summary').textContent=state.catalogue.length?`${state.catalogueActiveTotal.toLocaleString('fr-FR')} références actives consultables${state.catalogueHistoricalTotal?` + ${state.catalogueHistoricalTotal} références conservées uniquement pour les anciens rendus`:''}. La recherche et le changement d’une référence active sont locaux et gratuits.`:'Chargement du catalogue…';
+  $('#catalogue-explorer-title').textContent='Choisir d’autres produits';
+  $('#explorer-summary').textContent=state.catalogue.length?'Recherchez un produit et choisissez celui qui vous plaît.':'Chargement des produits…';
   if(!$('#catalogue-explorer-details').open)return;
   const query=searchable(state.explorer.query),role=state.explorer.role;
   const filtered=state.catalogue.filter(product=>(!role||product.role===role)&&(!query||searchable([product.catalog_id,product.sku,product.retailer,product.product_name,product.category].join(' ')).includes(query)));
@@ -289,17 +283,8 @@ function renderCatalogueExplorer() {
 function renderSurfaceMessage() {
   const floor=state.surfaces.floor==='preserve'?'sol conservé':'sol modifié avec une finition catalogue';
   const walls=state.surfaces.walls==='preserve'?'murs conservés':'murs modifiés avec une finition catalogue';
-  $('#surface-message').textContent=`${floor[0].toUpperCase()+floor.slice(1)} et ${walls}. Ces deux choix sont indépendants.`;
+  $('#surface-message').textContent=`${floor[0].toUpperCase()+floor.slice(1)} et ${walls}.`;
   for(const input of $$('[data-surface]'))input.closest('.surface-card').classList.toggle('selected',input.checked);
-}
-
-function renderEngine() {
-  for(const button of $$('.engine-choice')) {
-    const active=button.dataset.imageProvider===state.provider;button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));
-  }
-  $('#engine-switch-note').textContent=`${providerLabel()} sélectionné. Changer de moteur est gratuit et conserve exactement la même sélection.`;
-  $('#image-key-label').textContent=`${providerLabel()} actif`;$('#provider-progress-label').textContent=`Rendu ${providerLabel()}`;
-  $('#render-cost-label').textContent=`Rendu ${providerLabel()}`;$('#model-name').textContent=providerLabel();
 }
 
 function markReady(iconSelector,statusSelector,label,ready=true) {
@@ -325,11 +310,11 @@ function resultMatchesDraft(result) {
 
 function updateGenerate() {
   const button=$('#dynamic-generate-button'),label=button.querySelector('span'),providerConfigured=Boolean(state.providers[state.provider]?.configured)&&state.generationEnabled,configured=providerConfigured&&state.hotspotWorkerReady;
-  const previous=resultMatchesDraft(state.results[state.provider]);let text=`Générer avec ${providerLabel()}`;
+  const previous=state.results.muse?.provider==='muse'&&resultMatchesDraft(state.results.muse);let text='Générer l’image';
   if(!state.photoPath)text='Prendre ou télécharger une photo';else if(!state.programme)text='Choisir un aménagement';
-  else if(!providerConfigured)text=`${providerLabel()} non configuré`;else if(!state.hotspotWorkerReady)text='Points non configurés';else if(previous)text=`Rendu ${providerLabel()} obtenu`;
+  else if(!providerConfigured)text='Génération indisponible';else if(!state.hotspotWorkerReady)text='Points non configurés';else if(previous)text='Rendu obtenu';
   const dimensionsReady=Number.isInteger(state.width)&&Number.isInteger(state.height);
-  label.textContent=text;button.disabled=state.busy||!state.photoPath||!dimensionsReady||!state.programme||!state.fingerprint||!configured||previous;
+  label.textContent=text;button.disabled=state.busy||!state.photoPath||!dimensionsReady||!PROGRAMMES.some(item=>item.id===state.programme)||!state.fingerprint||!configured||previous;
   const replay=$('#replay-render-button');replay.classList.toggle('hidden',!previous||!state.photoPath);replay.disabled=state.busy||!configured||!previous||!state.photoPath;
   const stage=$('#dynamic-stage');
   if(state.busy)stage.textContent=`${providerLabel()} génère l’image. Aucun retry automatique.`;
@@ -337,11 +322,11 @@ function updateGenerate() {
   else if(!state.programme)stage.textContent='Choisissez un aménagement avant de générer.';
   else if(!providerConfigured)stage.textContent=`${providerLabel()} n’est pas configuré sur le serveur.`;
   else if(!state.hotspotWorkerReady)stage.textContent='La génération est bloquée tant que le worker de points produits n’est pas prêt.';
-  else if(previous)stage.textContent=`Le rendu ${providerLabel()} est disponible. Changez de moteur pour comparer avec les mêmes produits.`;
-  else stage.textContent=`Prêt. Ce clic autorise un seul appel image payant à ${providerLabel()}, sans relance automatique.`;
+  else if(previous)stage.textContent='Votre rendu est disponible. Vous pouvez proposer une nouvelle composition.';
+  else stage.textContent='Prêt à générer une image avec Muse.';
 }
 
-function updateInterface() { renderEngine();renderSurfaceMessage();updateReadiness();updateGenerate();renderCart(); }
+function updateInterface() { renderSurfaceMessage();updateReadiness();updateGenerate();renderCart(); }
 
 function currentResult() {
   const exact=state.results[state.provider];if(resultMatchesDraft(exact))return exact;
@@ -355,26 +340,14 @@ function setStageImage(url,{href=url,badge,caption,dimensions,alt}) {
 }
 
 function setView(view) {
-  if(view==='result'&&!currentResult())view='original';state.view=view;state.compare=false;
-  $('#provider-comparison').classList.add('hidden');$('#image-stage').classList.remove('comparing');$('#stage-link').classList.remove('hidden');
+  if(view==='result'&&!currentResult())view='original';state.view=view;
   if(view==='original')setStageImage(state.photoURL||'/placeholder-room.svg',{badge:'PHOTO ORIGINALE',caption:state.photoPath?'Architecture, ouvertures, sol et installations fixes à conserver.':'Prenez ou ajoutez la photographie du salon.',dimensions:state.width?`${state.width.toLocaleString('fr-FR')} × ${state.height.toLocaleString('fr-FR')}`:'',alt:state.photoPath?'Photographie originale du salon':'Ajoutez ou prenez une photographie de votre salon'});
   else {
     const result=currentResult();setStageImage(result.image_url,{badge:`RENDU ${providerLabel(result.provider).toUpperCase()}`,caption:'Rendu à examiner : architecture, installations fixes et produits restent à valider humainement.',dimensions:`${Math.round(result.elapsed_ms/1000)} s`,alt:`Rendu Japandi généré par ${providerLabel(result.provider)}`});
   }
   for(const tab of $$('.view-tab')){const active=tab.dataset.view===view;tab.classList.toggle('active',active);tab.setAttribute('aria-selected',String(active));}
   for(const item of $$('.comparison-item'))item.classList.toggle('active',item.dataset.view===view);
-  $('#stage-empty').classList.add('hidden');$('#compare-provider-results').setAttribute('aria-pressed','false');updateHotspotNotice();
-}
-
-function showComparison() {
-  const openai=state.results.openai,muse=state.results.muse;
-  if(!resultMatchesDraft(openai)||!resultMatchesDraft(muse))return;
-  state.view='result';state.compare=true;$('#stage-link').classList.add('hidden');$('#provider-comparison').classList.remove('hidden');$('#image-stage').classList.add('comparing');
-  $('#provider-first-image').src=openai.image_url;$('#provider-first-link').href=openai.image_url;$('#provider-first-cost').textContent=costLabel(openai);
-  $('#provider-second-image').src=muse.image_url;$('#provider-second-link').href=muse.image_url;$('#provider-second-cost').textContent=costLabel(muse);
-  $('#stage-badge').textContent='COMPARAISON';$('#stage-caption').textContent='Même photo, mêmes réglages et mêmes produits figés.';$('#stage-dimensions').textContent='Muse / OpenAI';
-  for(const tab of $$('.view-tab')){const active=tab.dataset.view==='result';tab.classList.toggle('active',active);tab.setAttribute('aria-selected',String(active));}
-  $('#compare-provider-results').setAttribute('aria-pressed','true');updateHotspotNotice();
+  $('#stage-empty').classList.add('hidden');updateHotspotNotice();
 }
 
 function closeHotspotCard() {
@@ -410,7 +383,7 @@ function openHotspotCard(point,payload,button) {
 
 function renderHotspots() {
   const layer=$('#product-hotspot-layer'),result=currentResult(),payload=result&&state.hotspots.get(result.run_id);layer.replaceChildren();closeHotspotCard();
-  const active=state.view==='result'&&!state.compare&&result&&payload?.localization?.status==='completed'&&state.hotspotVisible&&payload.hotspots.length;
+  const active=state.view==='result'&&result&&payload?.localization?.status==='completed'&&state.hotspotVisible&&payload.hotspots.length;
   if(!active){layer.classList.add('hidden');return;}
   const rect=containedImageRect();if(!rect){layer.classList.add('hidden');return;}
   Object.assign(layer.style,{left:`${rect.left}px`,top:`${rect.top}px`,width:`${rect.width}px`,height:`${rect.height}px`});
@@ -443,12 +416,12 @@ function ensureHotspots(result) {
 }
 
 function updateHotspotNotice() {
-  const result=currentResult(),visible=state.view==='result'&&!state.compare&&Boolean(result),tools=$('#product-hotspot-tools'),status=$('#product-hotspot-status'),payload=result&&state.hotspots.get(result.run_id),toggle=$('#product-hotspot-toggle');
+  const result=currentResult(),visible=state.view==='result'&&Boolean(result),tools=$('#product-hotspot-tools'),status=$('#product-hotspot-status'),payload=result&&state.hotspots.get(result.run_id),toggle=$('#product-hotspot-toggle');
   tools.classList.toggle('hidden',!visible);status.classList.toggle('hidden',!visible);
   toggle.textContent=state.hotspotVisible?'Masquer les points':'Afficher les points';toggle.setAttribute('aria-pressed',String(state.hotspotVisible));toggle.disabled=!payload?.hotspots?.length;
   status.classList.toggle('error',payload?.localization?.status==='failed');
   if(!visible)status.textContent='';
-  else if(!payload||['queued','pending'].includes(payload.localization?.status))status.textContent='Rendu placé dans la file de repérage · vision hors ligne hébergée, sans nouvel appel Muse/OpenAI.';
+  else if(!payload||['queued','pending'].includes(payload.localization?.status))status.textContent='Repérage des produits en cours.';
   else if(payload.localization?.status==='processing')status.textContent=`Repérage automatique en cours sur l’image finale${payload.localization.attempt?` · tentative locale ${payload.localization.attempt}`:''}.`;
   else if(payload.localization?.status==='failed'&&payload.localization?.retryable!==false)status.textContent='Le worker a rencontré un incident ; une nouvelle tentative de repérage local est programmée. Le rendu payé reste intact.';
   else if(payload.localization?.status==='failed')status.textContent='Le repérage des produits a échoué ; le rendu reste intact et aucun point approximatif n’a été ajouté.';
@@ -462,16 +435,14 @@ function renderResults() {
   $('#tab-result').disabled=!result;$('#tab-result').tabIndex=result?0:-1;$('#result-dot').classList.toggle('hidden',!result);
   if(result){thumbnail.src=result.image_url;thumbnail.classList.remove('hidden');empty.classList.add('hidden');}
   else {thumbnail.removeAttribute('src');thumbnail.classList.add('hidden');empty.classList.remove('hidden');}
-  const pair=['openai','muse'].every(provider=>resultMatchesDraft(state.results[provider]));
-  const compare=$('#compare-provider-results');compare.classList.toggle('hidden',!pair);compare.setAttribute('aria-pressed',String(state.compare));
-  if(state.view==='result')state.compare&&pair?showComparison():setView('result');else setView('original');
+  if(state.view==='result')setView('result');else setView('original');
 }
 
 function renderHistory() {
   const container=$('#history-content');container.replaceChildren();
   if(!state.history.length){
     const empty=node('div','history-empty');empty.append(node('span','history-number','01'));
-    const text=node('div');text.append(node('h3','', 'Aucun rendu dans cette session'),node('p','', 'Chaque résultat apparaîtra ici avec son moteur et sa sélection figée.'));
+    const text=node('div');text.append(node('h3','', 'Aucun rendu pour le moment'),node('p','', 'Vos images apparaîtront ici.'));
     empty.append(text);container.append(empty);return;
   }
   const newestFirst=[...state.history].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
@@ -492,12 +463,11 @@ async function openHistoryResult(result) {
   const token=++state.historyOpenToken;let dimensions={width:null,height:null};
   if(result.source_image_url)try{dimensions=await imageDimensions(result.source_image_url);}catch{}
   if(token!==state.historyOpenToken)return;
-  clearHotspotPolling();state.provider=result.provider;state.programme=result.program;state.includeTV=Boolean(result.include_tv);state.surfaces=result.surfaces||{floor:'preserve',walls:'preserve'};
+  clearHotspotPolling();state.programme=PROGRAMMES.some(item=>item.id===result.program)?result.program:null;state.includeTV=Boolean(result.include_tv);state.surfaces=result.surfaces||{floor:'preserve',walls:'preserve'};
   state.selection=result.products;state.fingerprint=result.selection_fingerprint;state.forcedByRole=Object.fromEntries(result.products.map(product=>[product.role,product.catalog_id]));
   state.selectionOrigin='history';state.compositionVersion+=1;state.photoPath=result.source_path||null;state.photoURL=result.source_image_url||null;state.photoName=`Photo du rendu ${result.run_id}`;state.photoDeletable=false;
   Object.assign(state,dimensions);
-  state.results={};for(const item of state.history.filter(item=>item.selection_fingerprint===result.selection_fingerprint&&item.source_path===result.source_path))state.results[item.provider]=item;
-  state.results[result.provider]=result;state.view='result';state.compare=false;
+  state.results={muse:result};state.view='result';
   for(const input of $$('[data-surface]'))input.checked=input.value===state.surfaces[input.dataset.surface];
   $('#case-select').replaceChildren(new Option(state.photoName,state.photoName,true,true));$('#delete-photo-button').disabled=true;
   if(state.photoURL)$('#original-thumbnail-image').src=state.photoURL;
@@ -507,7 +477,7 @@ async function openHistoryResult(result) {
 async function refreshHistory() {
   const payload=await api('/api/history');state.history=payload.runs||[];renderHistory();
   const result=currentResult(),fresh=result&&state.history.find(item=>item.run_id===result.run_id);
-  if(fresh){state.results[fresh.provider]=fresh;renderResults();}
+  if(fresh){state.results.muse=fresh;renderResults();}
 }
 
 async function optimizePhoto(file) {
@@ -530,7 +500,7 @@ async function uploadPhoto(file) {
   const uploaded=await api('/api/upload',{method:'POST',headers:{'Content-Type':optimized.blob.type},body:optimized.blob});
   if(state.photoURL?.startsWith('blob:'))URL.revokeObjectURL(state.photoURL);
   state.photoURL=URL.createObjectURL(optimized.blob);state.photoPath=uploaded.pathname;state.photoName=file.name;state.width=optimized.width;state.height=optimized.height;state.photoDeletable=true;
-  state.results={};state.compare=false;state.view='original';
+  state.results={};state.view='original';
   const select=$('#case-select');select.replaceChildren(new Option(file.name,file.name,true,true));
   $('#delete-photo-button').disabled=false;$('#case-feedback').textContent=`Photo privée prête · ${optimized.width} × ${optimized.height} · ${(optimized.blob.size/1024/1024).toFixed(2)} Mo. Aucun appel IA effectué.`;
   $('#original-thumbnail-image').src=state.photoURL;if(state.programme)await prepareRandomSelection();setView('original');renderResults();updateInterface();
@@ -542,7 +512,7 @@ async function deletePhoto() {
   try {
     await api('/api/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({paths:[state.photoPath]})});
     if(state.photoURL?.startsWith('blob:'))URL.revokeObjectURL(state.photoURL);
-    Object.assign(state,{photoPath:null,photoURL:null,photoName:null,width:null,height:null,photoDeletable:false,results:{},compare:false,view:'original'});
+    Object.assign(state,{photoPath:null,photoURL:null,photoName:null,width:null,height:null,photoDeletable:false,results:{},view:'original'});
     $('#camera-file').value='';$('#room-file').value='';$('#case-select').replaceChildren(new Option('Aucune photo ajoutée','',true,true));
     $('#original-thumbnail-image').src='/placeholder-room.svg';$('#case-feedback').textContent='Photo supprimée du stockage privé.';
     renderResults();updateInterface();
@@ -558,15 +528,15 @@ async function generate({fresh=false}={}) {
   if(state.busy)return;state.busy=true;
   try {
     if(fresh)await prepareRandomSelection();
-    const existing=resultMatchesDraft(state.results[state.provider]);
-    if(!state.photoPath||!state.fingerprint||existing)return;
+    const existing=state.results.muse?.provider==='muse'&&resultMatchesDraft(state.results.muse);
+    if(!state.photoPath||!state.fingerprint||!PROGRAMMES.some(item=>item.id===state.programme)||existing)return;
     setProgress(true);updateInterface();setFeedback('Génération en cours',`${providerLabel()} reçoit la photo et les ${state.selection.length} références exactes. Un seul appel, sans retry.`,{busy:true});
     const result=await api('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-      provider:state.provider,program:state.programme,include_tv:state.includeTV,surfaces:state.surfaces,room_path:state.photoPath,width:state.width,height:state.height,
+      provider:'muse',program:state.programme,include_tv:state.includeTV,surfaces:state.surfaces,room_path:state.photoPath,width:state.width,height:state.height,
       product_ids:state.selection.map(product=>product.catalog_id),selection_fingerprint:state.fingerprint,authorization_id:crypto.randomUUID(),confirm_paid_generation:true,
     })});
     const complete={...result,program:state.programme,include_tv:state.includeTV,surfaces:{...state.surfaces},source_path:state.photoPath,source_image_url:state.photoURL,created_at:new Date().toISOString()};
-    state.results[state.provider]=complete;state.history.push(complete);state.view='result';state.compare=false;state.photoDeletable=false;$('#delete-photo-button').disabled=true;
+    state.results.muse=complete;state.history.push(complete);state.view='result';state.photoDeletable=false;$('#delete-photo-button').disabled=true;
     $('#render-cost').textContent=costLabel(complete);renderHistory();renderResults();setView('result');ensureHotspots(complete);
     setFeedback('Rendu reçu',`${providerLabel()} a livré une image. Le repérage des ronds bleus démarre sur les pixels finaux ; vérifiez aussi le poêle, l’architecture, les ouvertures, les fixes et chaque produit.`);
     $('#workspace').scrollIntoView({behavior:'smooth',block:'start'});
@@ -575,10 +545,6 @@ async function generate({fresh=false}={}) {
 }
 
 function bindEvents() {
-  for(const button of $$('.engine-choice'))button.addEventListener('click',()=>{
-    state.provider=button.dataset.imageProvider;state.compare=false;renderEngine();renderResults();updateInterface();
-    setFeedback('Moteur changé',`${providerLabel()} est sélectionné. Aucun appel n’a été effectué et les produits restent identiques.`);
-  });
   $('#camera-button').addEventListener('click',()=>$('#camera-file').click());
   $('#upload-button').addEventListener('click',()=>$('#room-file').click());
   for(const input of [$('#camera-file'),$('#room-file')])input.addEventListener('change',async event=>{
@@ -598,7 +564,6 @@ function bindEvents() {
   $('#dynamic-generate-button').addEventListener('click',()=>generate());$('#replay-render-button').addEventListener('click',()=>generate({fresh:true}));
   $('#tab-original').addEventListener('click',()=>setView('original'));$('#tab-result').addEventListener('click',()=>setView('result'));
   for(const item of $$('.comparison-item'))item.addEventListener('click',()=>setView(item.dataset.view));
-  $('#compare-provider-results').addEventListener('click',()=>state.compare?setView('result'):showComparison());
   $('#product-hotspot-toggle').addEventListener('click',()=>{state.hotspotVisible=!state.hotspotVisible;updateHotspotNotice();});
   $('#product-hotspot-refresh').addEventListener('click',async()=>{
     const result=currentResult();if(!result)return;const button=$('#product-hotspot-refresh');button.disabled=true;

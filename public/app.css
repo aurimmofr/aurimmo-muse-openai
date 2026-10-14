@@ -716,7 +716,7 @@ h1 {
 }
 .comparison-strip {
   display:grid;
-  grid-template-columns:repeat(3,minmax(0,1fr));
+  grid-template-columns:repeat(2,minmax(0,1fr));
   gap:13px;
   padding:19px;
 }
@@ -2598,7 +2598,7 @@ code {
 .programme-fieldset {padding:0;margin:0;border:0;min-width:0;}
 .programme-fieldset legend {font-family:Georgia,"Times New Roman",serif;font-size:27px;line-height:1.2;color:var(--ink);padding:0;}
 .programme-intro {margin:10px 0 19px;color:var(--muted);font-size:13px;}
-.programme-cards {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;align-items:start;}
+.programme-cards {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start;}
 .programme-card {display:flex;align-items:flex-start;gap:9px;min-height:122px;padding:18px 14px;border:1px solid var(--line);border-radius:9px;background:var(--paper,#f5f2eb);cursor:pointer;transition:border-color .15s,background .15s;}
 .programme-card input {accent-color:var(--sage);margin-top:3px;flex-shrink:0;}
 .programme-card-copy {display:grid;gap:8px;min-width:0;}
