@@ -50,17 +50,24 @@ test('generation validation requires one explicit confirmation and an exact sele
 test('prompt protects source architecture, fixed elements and merchant backgrounds',()=>{
   const products=[catalogue.products.find(x=>x.role==='sofa'),catalogue.products.find(x=>x.role==='rug'),catalogue.products.find(x=>x.role==='floor_lamp')];
   const prompt=__test.promptFor({program:'living_conversation',include_tv:false,surfaces:{floor:'preserve',walls:'replace'}},products);
-  assert.match(prompt,/MÊME PIÈCE/);
-  assert.match(prompt,/VERROU ARCHITECTURAL — PRIORITÉ ABSOLUE/);
-  assert.match(prompt,/exactement le même point de vue/);
-  assert.match(prompt,/fenêtres, baies vitrées, portes et ouvertures/);
+  assert.match(prompt,/MÊME PIÈCE EXACTE/);
+  assert.match(prompt,/ARCHITECTURE — ZÉRO CHANGEMENT DE GÉOMÉTRIE — PRIORITÉ ABSOLUE/);
+  assert.match(prompt,/exactement la même position de caméra/);
+  assert.match(prompt,/retourner en miroir/);
+  assert.match(prompt,/fenêtres, baies vitrées, portes.*ouvertures/);
   assert.match(prompt,/cuisine intégrée/);
   assert.match(prompt,/meubles de cuisine fixés/);
   assert.match(prompt,/plans de travail/);
   assert.match(prompt,/radiateurs/);
   assert.match(prompt,/poêle/);
-  assert.match(prompt,/jamais des références spatiales/);
-  assert.match(prompt,/Le mobilier doit s'adapter à la pièce existante/);
+  assert.match(prompt,/corps au conduit/);
+  assert.match(prompt,/chaque escalier/);
+  assert.match(prompt,/sens montant ou descendant de chaque volée/);
+  assert.match(prompt,/le départ, l'arrivée, la pente, les paliers/);
+  assert.match(prompt,/luminaire décoratif mobile/);
+  assert.match(prompt,/Des rideaux peuvent être retirés/);
+  assert.match(prompt,/jamais des références de pièce, d'implantation ou d'architecture/);
+  assert.match(prompt,/Le mobilier s'adapte à la pièce existante/);
   assert.match(prompt,/comparer le résultat à l'image 1 bord à bord/);
   assert.match(prompt,/Ne créer aucune télévision/);
   assert.match(prompt,/référence wall_finish/);
@@ -69,9 +76,39 @@ test('prompt protects source architecture, fixed elements and merchant backgroun
 test('surface replacement changes appearance only, never room geometry',()=>{
   const products=[catalogue.products.find(x=>x.role==='sofa'),catalogue.products.find(x=>x.role==='floor_finish'),catalogue.products.find(x=>x.role==='wall_finish')];
   const prompt=__test.promptFor({program:'living_conversation',include_tv:false,surfaces:{floor:'replace',walls:'replace'}},products);
-  assert.match(prompt,/remplacer uniquement son apparence/);
-  assert.match(prompt,/sans changer leur géométrie, leurs limites, leurs niveaux, leurs raccords, leurs ouvertures/);
+  assert.match(prompt,/SOL — APPARENCE SEULEMENT/);
+  assert.match(prompt,/MURS — FINITION SEULEMENT/);
+  assert.match(prompt,/change uniquement l'apparence/);
   assert.match(prompt,/Ne jamais transformer une cuisine intégrée/);
+});
+
+test('Muse request uses the documented private-tool keys from the 58-photo regression contract',()=>{
+  const request=__test.providerRequest('muse','prompt',[{image_url:'data:image/jpeg;base64,AA=='}],{width:1200,height:800});
+  assert.deepEqual(request.tool_enablement,{enable_image_search:false,enable_web_search:false,enable_shell:false});
+  assert.equal(request.reasoning_strength,'high');
+  assert.equal(request.size,'1200x800');
+  assert.equal(Object.hasOwn(request.tool_enablement,'image_search'),false);
+});
+
+test('all five programmes and four surface policies keep the complete architecture contract',()=>{
+  const programmes=[
+    {program:'living_conversation',include_tv:false},
+    {program:'living_reading',include_tv:false},
+    {program:'living_tv',include_tv:false},
+    {program:'living_dining',include_tv:false},
+    {program:'living_dining',include_tv:true},
+  ];
+  const surfaces=[
+    {floor:'preserve',walls:'preserve'},
+    {floor:'replace',walls:'preserve'},
+    {floor:'preserve',walls:'replace'},
+    {floor:'replace',walls:'replace'},
+  ];
+  const products=[catalogue.products.find(x=>x.role==='sofa')];
+  for(const programme of programmes)for(const surfacePolicy of surfaces){
+    const prompt=__test.promptFor({...programme,surfaces:surfacePolicy},products);
+    for(const invariant of [/MÊME PIÈCE EXACTE/,/CAMÉRA ET CADRE — ZÉRO CHANGEMENT/,/ARCHITECTURE — ZÉRO CHANGEMENT DE GÉOMÉTRIE/,/ESCALIERS — VERROU DÉTAILLÉ/,/INSTALLATIONS FIXES ET ÉLÉMENTS INTÉGRÉS — ZÉRO CHANGEMENT/,/poêle et son conduit complet/,/cuisine intégrée/,/bord à bord/])assert.match(prompt,invariant);
+  }
 });
 
 test('public source never contains local secrets or paid result data',async()=>{
